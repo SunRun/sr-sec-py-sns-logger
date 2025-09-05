@@ -1,7 +1,13 @@
 # sr-sec-py-sns-logger
-This Python module provides a client library for sending structured security logs to a centralized AWS SNS Topic. It is designed to be consumed by other applications to ensure all security events are consistently formatted and delivered to the central security logging pipeline.
 
-This library does not use the standard Python logging module. Instead, it directly publishes JSON messages to a predefined SNS topic using the AWS SDK for Python (boto3), which is more efficient and reliable for this specific security pipeline.
+A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This library ensures all security events are consistently formatted and delivered to your security logging pipeline.
+
+**Key Features:**
+- 🔒 **Security-First**: Designed specifically for security event logging
+- 🚀 **Production-Ready**: Built-in retry logic, timeouts, and error handling  
+- ✅ **Compliance**: Covers all High priority security events with required data points
+- 🧪 **Test Mode**: Test without AWS credentials for development and validation
+- 📦 **Simple API**: One-line initialization, clean function calls
 
 ##  📦 Installation
 This module is intended to be copied or included as a submodule in your project's repository. There are no external dependencies beyond the standard AWS SDK.
@@ -97,91 +103,197 @@ else:
     print("Security event logged successfully")
 ```
 
+## 📋 **Complete Usage Example**
+
+```python
+import security_logging_sns
+from security_log_fields import AuthorizationStatus, UserType, ActionType
+
+# Initialize once at application startup
+security_logging_sns.init_security_logging()
+
+# Define base log details (common to all events in this execution)
+base_log_details = {
+    "service_name": "user-management-api",
+    "cloud_service_api_type": "aws_lambda",
+    "cloud_env_type": "production",
+    "cloud_env_name": "prod-us-east-1",
+    "service_account_id": "123456789012",
+    "aws_request_id": "req-abc123"
+}
+
+# Example 1: User login
+result = security_logging_sns.log_user_login(
+    base_log_details=base_log_details,
+    status=AuthorizationStatus.SUCCESS,
+    session_id="session-xyz789",
+    user_identifier="alice@company.com",
+    user_type=UserType.INTERNAL,
+    source_ip_address="192.168.1.100",
+    user_agent="Mozilla/5.0 (compatible)",
+    user_role="developer"
+)
+
+# Example 2: Single customer record access
+result = security_logging_sns.log_single_record_access(
+    base_log_details=base_log_details,
+    user_identifier="alice@company.com",
+    source_ip_address="192.168.1.100",
+    customer_id="customer-12345",
+    action_type=ActionType.VIEWED,
+    fields_accessed=["name", "email", "phone"],
+    session_id="session-xyz789",
+    actor_user_type=UserType.INTERNAL
+)
+
+# Example 3: Multi-record customer data access
+result = security_logging_sns.log_multi_record_access(
+    base_log_details=base_log_details,
+    user_identifier="alice@company.com",
+    source_ip_address="192.168.1.100",
+    action_type=ActionType.EXPORTED,
+    record_count=1500,
+    session_id="session-xyz789",
+    actor_user_type=UserType.INTERNAL,
+    customer_id_list=["cust-001", "cust-002", "cust-003"],
+    endpoint_path="/api/v1/customers/export",
+    data_sensitivity_level="Confidential-PII"
+)
+```
+
+## 📄 **Log Output Examples**
+
+### Single Customer Record Access
+When a user accesses a single customer record, the following JSON is sent to SNS:
+
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "customer_data_actions",
+  "event_type": "single_record_access",
+  "user_identifier": "alice@company.com",
+  "source_ip_address": "192.168.1.100",
+  "customer_id": "customer-12345",
+  "action_type": "record_viewed",
+  "fields_accessed": [
+    "name",
+    "email", 
+    "phone"
+  ],
+  "session_id": "session-xyz789",
+  "actor_user_type": "internal",
+  "timestamp": "2025-09-05T18:29:48.624756+00:00"
+}
+```
+
+### Multi-Record Customer Data Export
+When a user exports multiple customer records, the following JSON is sent to SNS:
+
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "customer_data_actions",
+  "event_type": "multi_record_access",
+  "user_identifier": "alice@company.com",
+  "source_ip_address": "192.168.1.100",
+  "action_type": "exported",
+  "record_count": 1500,
+  "session_id": "session-xyz789",
+  "actor_user_type": "internal",
+  "customer_id_list": [
+    "cust-001",
+    "cust-002",
+    "cust-003"
+  ],
+  "endpoint_path": "/api/v1/customers/export",
+  "data_sensitivity_level": "Confidential-PII",
+  "timestamp": "2025-09-05T18:29:58.892500+00:00"
+}
+```
+
+## 🧪 **Test Mode**
+
+For development and testing, you can run the module in test mode without AWS credentials:
+
+```python
+# Initialize in test mode - no AWS setup needed!
+security_logging_sns.init_security_logging(test_mode=True)
+
+# Use normally - logs print to console instead of SNS
+result = security_logging_sns.log_user_login(...)
+# Output: Pretty-printed JSON showing exactly what would be sent to SNS
+```
+
 ## 📚 API Reference
 
 ### Initialization
-**`init_security_logging(topic_arn=None, region_name=None)`**
+**`init_security_logging(topic_arn=None, region_name=None, test_mode=False)`**
+
 Initialize the security logging module. Must be called once before using any logging functions.
 - `topic_arn` (optional): SNS Topic ARN. If None, reads from `SECURITY_LOGS_TOPIC_ARN` env var
 - `region_name` (optional): AWS region. If None, reads from `AWS_REGION` env var or uses AWS default
+- `test_mode` (optional): If True, logs are printed to console instead of sent to SNS
 
-### Logging Functions
-All logging functions require `base_log_details` as the first argument, followed by event-specific parameters.
+### Available Logging Functions
 
-**Return Format**: All logging functions return a dictionary with the following structure:
-- `{"status": "success"}` - When logging succeeds
-- `{"status": "failure", "message": "error details"}` - When logging fails (includes error message)
+All functions return `{"status": "success"}` or `{"status": "failure", "message": "error details"}` and will never crash your application.
 
-The functions are designed to never crash your application - they will always return a status dictionary even if there are internal errors.
+| **Category** | **Function** | **Use Case** |
+|---|---|---|
+| **Authentication & Session** | `log_user_login()` | User login success/failure events |
+| | `log_mfa_challenge()` | MFA challenge events |
+| | `log_user_logout()` | User logout events |
+| **Authorization & Access** | `log_permission_change()` | Permission/role changes |
+| | `log_user_status_change()` | User enable/disable/delete events |
+| | `log_impersonation_event()` | Admin impersonation start/stop |
+| | `log_user_invite_event()` | User invite sent/accepted/revoked |
+| **API Access** | `log_api_request_processed()` | API endpoint access logging |
+| **Customer Data** | `log_single_record_access()` | Single customer record access |
+| | `log_multi_record_access()` | Multi-record access/export |
+| **Configuration** | `log_key_configuration_change()` | MFA, password, API key changes |
 
-`log_user_login(...)`
-Logs user login success or failure events.
+### Function Parameters
 
-* Parameters: `status`, `session_id`, `user_identifier`, `user_type`, `source_ip_address`, `user_agent`, `user_role`, `device_id` (optional), `context` (optional), `reason` (optional).
-* Example Usage:
-```
-log_user_login(sns_publisher, base_log_details, status=AuthorizationStatus.FAILURE, ...)
-```
+All functions require:
+1. `base_log_details` - Common context for all events
+2. Event-specific parameters (see function signatures in code)
 
-`log_mfa_challenge(...)`
-Logs MFA challenge events.
+**Common Parameters:**
+- `user_identifier` - Who performed the action
+- `session_id` - User session identifier  
+- `source_ip_address` - Source IP address
+- `actor_user_type` - Type of user (internal, partner, customer, etc.)
 
-* Parameters: `status`, `session_id`, `user_identifier`, `user_type`, `source_ip_address`, `user_agent`, `user_role`, `mfa_type`, `device_id` (optional), `reason` (optional).
+## ⚙️ **How It Works**
 
-`log_user_logout(...)`
-Logs user logout events.
+The module provides a simple, production-ready interface for security logging:
 
-* Parameters: `session_id`, `user_identifier`, `user_type`, `source_ip_address`, `user_agent`, `reason`.
+1. **Initialization**: `init_security_logging()` sets up the SNS publisher with production-grade configuration
+2. **Event Construction**: Logging functions build structured JSON with all required security fields
+3. **Automatic Fields**: `timestamp` (UTC) and `event_type` are added automatically
+4. **Reliable Delivery**: AWS SDK handles retries with exponential backoff (5 attempts)
+5. **Error Safety**: All functions return status instead of throwing exceptions
 
-`log_permission_change(...)`
-Logs changes to a user's permissions or roles.
+**Module Files**:
+- `security_logging_sns.py` - Main module with logging functions
+- `sns_publisher.py` - SNS client with production configuration  
+- `security_log_fields.py` - Standardized field constants
+- `test_logging.py` - Test script with examples
 
-Parameters: `actor_user_identifier`, `target_user_identifier`, `session_id`, `object_changed`, `previous_value`, `new_value`.
-
-`log_user_status_change(...)`
-Logs changes to a user's status (e.g., enabled, disabled, deleted).
-
-* Parameters: `actor_user_identifier`, `target_user_identifier`, `action_type`, `actor_user_type`, `reason` (optional).
-
-`log_impersonation_event(...)`
-Logs impersonation start or stop events.
-
-* Parameters: `actor_user_identifier`, `actor_session_id`, `target_user_identifier`, `action_type`, `actor_user_type`.
-
-`log_api_request_processed(...)`
-Logs details of a processed API request.
-
-* Parameters: `source_ip_address`, `auth_protocol`, `client_id`, `client_type`, `endpoint_path`, `http_method`, `authorization_status`, `endpoint_sensitivity`, `session_id` (optional), `reason` (optional).
-
-`log_multi_record_access(...)`
-Logs access to multiple records (e.g., list views, data exports).
-
-* Parameters: `user_identifier`, `source_ip_address`, `action_type`, `record_count`, `session_id`, `actor_user_type`, `endpoint_path` (optional), `data_sensitivity_level` (optional).
-
-`log_single_record_access(...)`
-Logs access to a single data record (e.g., view or edit).
-
-* Parameters: `user_identifier`, `source_ip_address`, `customer_id`, `action_type`, `fields_accessed`, `session_id`, `actor_user_type`.
-
-`log_key_configuration_change(...)`
-Logs changes to critical configurations like MFA, passwords, or API keys.
-
-* Parameters: `actor_user_identifier`, `actor_session_id`, `target_object`, `change_type`, `status`, `actor_user_type`, `mfa_id` (optional).
-
-⚙️ How it Works
-The library uses a clean separation of concerns with the SNSPublisher class handling SNS operations and the logging functions handling event construction. When a logging function is called, it constructs a complete JSON object from the provided parameters and uses the SNSPublisher to publish it to the configured SNS topic with exponential backoff for resilience. This ensures that every log event is a single, structured message ready to be consumed by the downstream pipeline (SNS → Kinesis Firehose → S3).
-
-**Architecture**:
-- `sns_publisher.py` - Contains the SNSPublisher class with exponential backoff logic
-- `security_logging_sns.py` - Contains logging functions and event construction logic
-- `security_log_fields.py` - Contains standardized field definitions
-
-**Error Handling**: All functions include comprehensive try/catch blocks to ensure that logging failures never crash your application. Instead, they return a structured response indicating success or failure with details.
-
-**Production Configuration**: The SNSPublisher includes comprehensive boto3 configuration for production use:
-- **Retries**: AWS SDK's built-in retry with exponential backoff (5 attempts total)
-- **Timeouts**: Connection timeout (10s) and read timeout (30s) to prevent hanging
-- **Connection Pool**: Up to 50 connections for high-throughput scenarios
-- **Security**: AWS Signature Version 4 for secure authentication
-- **User Agent**: Custom identifier for debugging and monitoring
-- **Region**: Configurable AWS region with fallback to default resolution
+**Production Features**:
+- ✅ **AWS SDK Retries**: Built-in exponential backoff (5 attempts)
+- ✅ **Timeouts**: Connection (10s) and read (30s) timeouts prevent hanging
+- ✅ **Connection Pool**: Up to 50 concurrent connections for high-throughput
+- ✅ **Security**: AWS Signature Version 4 authentication
+- ✅ **Monitoring**: Custom user agent for CloudTrail identification
+- ✅ **Error Handling**: Never crashes your application

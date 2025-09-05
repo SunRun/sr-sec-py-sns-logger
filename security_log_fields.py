@@ -22,6 +22,11 @@ class ActionType:
     # Impersonation
     IMPERSONATION_START = "impersonation_start"
     IMPERSONATION_STOP = "impersonation_stop"
+    # User Invites
+    INVITE_SENT = "invite_sent"
+    INVITE_ACCEPTED = "invite_accepted"
+    INVITE_REVOKED = "invite_revoked"
+    INVITE_EXPIRED = "invite_expired"
 
 class AuthorizationStatus:
     SUCCESS = "Success"

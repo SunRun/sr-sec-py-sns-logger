@@ -53,7 +53,6 @@ def _create_log_event(
 ) -> Dict[str, Any]:
     """Helper function to combine base and event-specific log details."""
     log_details = {
-        "log_type": "security",
         "log_category": log_category,
         "event_type": event_type,
         **kwargs,
@@ -182,7 +181,8 @@ def log_permission_change(
     session_id: str,
     object_changed: str,
     previous_value: Any,
-    new_value: Any
+    new_value: Any,
+    user_type: str
 ) -> Dict[str, str]:
     """Logs a permission or role change event."""
     try:
@@ -193,6 +193,7 @@ def log_permission_change(
             "object_changed": object_changed,
             "previous_value": previous_value,
             "new_value": new_value,
+            "user_type": user_type,
         }
         event = _create_log_event(
             base_log_details,
@@ -258,6 +259,33 @@ def log_impersonation_event(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_impersonation_event: {str(e)}"}
 
+def log_user_invite_event(
+    base_log_details: Dict[str, Any],
+    actor_user_identifier: str,
+    target_user_email: str,
+    assigned_role: str,
+    invite_status: str,
+    actor_user_type: str
+) -> Dict[str, str]:
+    """Logs user invite events (sent, accepted, revoked, expired)."""
+    try:
+        log_details = {
+            "actor_user_identifier": actor_user_identifier,
+            "target_user_email": target_user_email,
+            "assigned_role": assigned_role,
+            "invite_status": invite_status,
+            "actor_user_type": actor_user_type,
+        }
+        event = _create_log_event(
+            base_log_details,
+            log_category="authz_n_access",
+            event_type="user_invite_event",
+            **log_details
+        )
+        return _get_publisher().publish_message(event)
+    except Exception as e:
+        return {"status": "failure", "message": f"Error in log_user_invite_event: {str(e)}"}
+
 # ==================================
 # == API Endpoint Access
 # ==================================
@@ -311,6 +339,7 @@ def log_multi_record_access(
     record_count: int,
     session_id: str,
     actor_user_type: str,
+    customer_id_list: List[str],
     endpoint_path: Optional[str] = None,
     data_sensitivity_level: Optional[str] = "Confidential-PII"
 ) -> Dict[str, str]:
@@ -323,6 +352,7 @@ def log_multi_record_access(
             "record_count": record_count,
             "session_id": session_id,
             "actor_user_type": actor_user_type,
+            "customer_id_list": customer_id_list,
         }
         if endpoint_path: log_details["endpoint_path"] = endpoint_path
         if data_sensitivity_level: log_details["data_sensitivity_level"] = data_sensitivity_level

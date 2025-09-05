@@ -93,7 +93,34 @@ def main():
         session_id="session-admin-789",
         object_changed="user_role",
         previous_value="developer",
-        new_value="senior_developer"
+        new_value="senior_developer",
+        user_type=UserType.INTERNAL
+    )
+    print(f"Result: {result}\n")
+    
+    print("🧪 TEST 6: Multi-Record Access Event")
+    result = security_logging_sns.log_multi_record_access(
+        base_log_details=base_log_details,
+        user_identifier="test.user@company.com",
+        source_ip_address="192.168.1.100",
+        action_type=ActionType.LIST_VIEWED,
+        record_count=150,
+        session_id="session-abc123",
+        actor_user_type=UserType.INTERNAL,
+        customer_id_list=["cust-001", "cust-002", "cust-003"],
+        endpoint_path="/api/v1/customers/list",
+        data_sensitivity_level="Confidential-PII"
+    )
+    print(f"Result: {result}\n")
+    
+    print("🧪 TEST 7: User Invite Event")
+    result = security_logging_sns.log_user_invite_event(
+        base_log_details=base_log_details,
+        actor_user_identifier="admin@company.com",
+        target_user_email="newuser@company.com",
+        assigned_role="developer",
+        invite_status="sent",
+        actor_user_type=UserType.INTERNAL
     )
     print(f"Result: {result}\n")
     
