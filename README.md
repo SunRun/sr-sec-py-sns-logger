@@ -161,11 +161,169 @@ result = security_logging_sns.log_multi_record_access(
 )
 ```
 
-## 📄 **Log Output Examples**
+## 📄 **Comprehensive Log Output Examples**
+
+This section shows the exact JSON structure for all security event types that the system can generate. Each example demonstrates the complete message that gets sent to your SNS topic and forwarded to your SIEM.
+
+### User Login Success
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authn_n_session",
+  "event_type": "login_success",
+  "status": "Success",
+  "session_id": "session-xyz789",
+  "user_identifier": "alice@company.com",
+  "user_type": "internal",
+  "source_ip_address": "192.168.1.100",
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+  "user_role": "developer",
+  "device_id": "device-123",
+  "context": "web_application",
+  "timestamp": "2025-09-05T20:34:36.501644+00:00"
+}
+```
+
+### User Login Failure
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authn_n_session",
+  "event_type": "login_failure",
+  "status": "Failure",
+  "session_id": "session-def456",
+  "user_identifier": "attacker@external.com",
+  "user_type": "customer",
+  "source_ip_address": "203.0.113.42",
+  "user_agent": "curl/7.68.0",
+  "user_role": "guest",
+  "reason": "invalid_credentials",
+  "timestamp": "2025-09-05T20:34:36.501849+00:00"
+}
+```
+
+### MFA Challenge Success
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authn_n_session",
+  "event_type": "mfa_challenge",
+  "status": "Success",
+  "session_id": "session-xyz789",
+  "user_identifier": "alice@company.com",
+  "user_type": "internal",
+  "source_ip_address": "192.168.1.100",
+  "user_agent": "Mozilla/5.0 (compatible)",
+  "user_role": "developer",
+  "mfa_type": "okta_verify",
+  "timestamp": "2025-09-05T20:34:36.501874+00:00"
+}
+```
+
+### API Request Processed
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "api_endpoint_access",
+  "event_type": "api_request_processed",
+  "source_ip_address": "192.168.1.100",
+  "auth_protocol": "oauth2_jwt",
+  "client_id": "mobile-app-v2.1",
+  "client_type": "mobile_application",
+  "endpoint_path": "/api/v1/users/profile",
+  "http_method": "GET",
+  "authorization_status": "Success",
+  "endpoint_sensitivity": "confidential",
+  "session_id": "session-xyz789",
+  "timestamp": "2025-09-05T20:34:36.501900+00:00"
+}
+```
+
+### Permission Change
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authz_n_access",
+  "event_type": "permission_change",
+  "actor_user_identifier": "admin@company.com",
+  "target_user_identifier": "alice@company.com",
+  "session_id": "session-admin-789",
+  "object_changed": "user_role",
+  "previous_value": "developer",
+  "new_value": "senior_developer",
+  "user_type": "internal",
+  "timestamp": "2025-09-05T20:34:36.501921+00:00"
+}
+```
+
+### Impersonation Start
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authz_n_access",
+  "event_type": "impersonation_event",
+  "actor_user_identifier": "support@company.com",
+  "actor_session_id": "session-support-123",
+  "target_user_identifier": "customer@external.com",
+  "action_type": "impersonation_start",
+  "actor_user_type": "internal",
+  "timestamp": "2025-09-05T20:34:36.501949+00:00"
+}
+```
+
+### MFA Configuration Change
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "key_config_changes",
+  "event_type": "key_configuration_change",
+  "actor_user_identifier": "alice@company.com",
+  "actor_session_id": "session-xyz789",
+  "target_object": "user-alice",
+  "change_type": "mfa_enabled",
+  "status": "Success",
+  "actor_user_type": "internal",
+  "mfa_id": "mfa-device-456",
+  "timestamp": "2025-09-05T20:34:36.502026+00:00"
+}
+```
 
 ### Single Customer Record Access
-When a user accesses a single customer record, the following JSON is sent to SNS:
-
 ```json
 {
   "service_name": "user-management-api",
@@ -192,8 +350,6 @@ When a user accesses a single customer record, the following JSON is sent to SNS
 ```
 
 ### Multi-Record Customer Data Export
-When a user exports multiple customer records, the following JSON is sent to SNS:
-
 ```json
 {
   "service_name": "user-management-api",
@@ -220,6 +376,112 @@ When a user exports multiple customer records, the following JSON is sent to SNS
   "timestamp": "2025-09-05T18:29:58.892500+00:00"
 }
 ```
+
+### User Logout
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authn_n_session",
+  "event_type": "logout",
+  "status": "Success",
+  "session_id": "session-xyz789",
+  "user_identifier": "alice@company.com",
+  "user_type": "internal",
+  "source_ip_address": "192.168.1.100",
+  "user_agent": "Mozilla/5.0 (compatible)",
+  "reason": "user_initiated",
+  "timestamp": "2025-09-05T20:36:52.335450+00:00"
+}
+```
+
+### User Status Change (Disabled)
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authz_n_access",
+  "event_type": "user_status_change",
+  "actor_user_identifier": "admin@company.com",
+  "target_user_identifier": "bob@company.com",
+  "action_type": "user_disabled",
+  "actor_user_type": "internal",
+  "reason": "policy_violation",
+  "timestamp": "2025-09-05T20:36:52.335655+00:00"
+}
+```
+
+### User Invite Sent
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "authz_n_access",
+  "event_type": "user_invite_event",
+  "actor_user_identifier": "admin@company.com",
+  "target_user_email": "newuser@company.com",
+  "assigned_role": "developer",
+  "invite_status": "sent",
+  "actor_user_type": "internal",
+  "timestamp": "2025-09-05T20:36:52.335676+00:00"
+}
+```
+
+### Password Configuration Change
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "key_config_changes",
+  "event_type": "key_configuration_change",
+  "actor_user_identifier": "alice@company.com",
+  "actor_session_id": "session-xyz789",
+  "target_object": "user-alice",
+  "change_type": "password_change",
+  "status": "Success",
+  "actor_user_type": "internal",
+  "timestamp": "2025-09-05T20:36:52.335692+00:00"
+}
+```
+
+### API Key Configuration Change
+```json
+{
+  "service_name": "user-management-api",
+  "cloud_service_api_type": "aws_lambda",
+  "cloud_env_type": "production",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "123456789012",
+  "aws_request_id": "req-abc123",
+  "log_category": "key_config_changes",
+  "event_type": "key_configuration_change",
+  "actor_user_identifier": "admin@company.com",
+  "actor_session_id": "session-admin-789",
+  "target_object": "api-client-123",
+  "change_type": "api_key_created",
+  "status": "Success",
+  "actor_user_type": "internal",
+  "timestamp": "2025-09-05T20:36:52.335710+00:00"
+}
+```
+
+> **📝 Note**: The examples above show the exact JSON structure for each security event type. All timestamps are in UTC ISO format, and all fields are automatically populated by the logging functions. Your SIEM will receive these structured messages for analysis and alerting.
 
 ## 🧪 **Test Mode**
 
