@@ -287,16 +287,16 @@ def _create_base_log_event(
         "service_account_id": service_account_id,
     }
     
-    # Add optional fields if provided
-    if source_ip_address and source_ip_address.strip():
-        base_log["source_ip_address"] = source_ip_address
-    if cloud_service_api_type and cloud_service_api_type.strip():
-        base_log["cloud_service_api_type"] = cloud_service_api_type
+    # Add optional base log fields (always include, even if empty)
+    base_log["source_ip_address"] = source_ip_address if source_ip_address else ""
+    base_log["cloud_service_api_type"] = cloud_service_api_type if cloud_service_api_type else ""
     
-    # Add event-specific fields
+    # Add event-specific fields (always include, even if empty)
     for key, value in log_specifics.items():
-        if value is not None and str(value).strip() != "":
-            base_log[key] = value
+        if value is not None:
+            base_log[key] = str(value) if value else ""
+        else:
+            base_log[key] = ""
     
     return base_log
 
@@ -599,8 +599,8 @@ def log_permission_change(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # Permission change type
-    change_type: str = "granted"  # "granted", "revoked"
+    # Detail for the permission change
+    detail: str = ""
 ) -> Dict[str, str]:
     """
     Logs permission/role/group membership change events.
@@ -629,15 +629,28 @@ def log_permission_change(
                 "message": f"Required log_specifics fields missing for permission change: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on change type and object
+        # Determine event type based on object type - now using permission_name to determine the action
         if "permission" in object_changed.lower():
-            event_type = EventType.PERMISSION_GRANT if change_type == "granted" else EventType.PERMISSION_REVOKE
+            # For permissions, assume grant if previous_value is empty/lower, revoke if new_value is empty/lower
+            if previous_value and not new_value:
+                event_type = EventType.PERMISSION_REVOKE
+            else:
+                event_type = EventType.PERMISSION_GRANT
         elif "role" in object_changed.lower():
-            event_type = EventType.ROLE_ASSIGN if change_type == "granted" else EventType.ROLE_UNASSIGN
+            # For roles, assume assign if new_value exists, unassign if new_value is empty
+            if new_value and new_value.strip():
+                event_type = EventType.ROLE_ASSIGN
+            else:
+                event_type = EventType.ROLE_UNASSIGN
         elif "group" in object_changed.lower():
-            event_type = EventType.GROUP_MEMBERSHIP_ADD if change_type == "granted" else EventType.GROUP_MEMBERSHIP_REMOVE
+            # For groups, assume add if new_value exists, remove if new_value is empty
+            if new_value and new_value.strip():
+                event_type = EventType.GROUP_MEMBERSHIP_ADD
+            else:
+                event_type = EventType.GROUP_MEMBERSHIP_REMOVE
         else:
-            event_type = EventType.PERMISSION_GRANT if change_type == "granted" else EventType.PERMISSION_REVOKE
+            # Default to permission grant
+            event_type = EventType.PERMISSION_GRANT
         
         # Create the log event
         event = _create_base_log_event(
@@ -660,6 +673,7 @@ def log_permission_change(
             object_changed=object_changed,
             previous_value=previous_value,
             new_value=new_value,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1226,8 +1240,8 @@ def log_mfa_status_change(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # Change type
-    change_type: str = "enabled"  # "enabled", "disabled", "device_added", "device_removed"
+    # MFA change type
+    mfa_change_type: str = "enabled"  # "enabled", "disabled", "device_added", "device_removed"
 ) -> Dict[str, str]:
     """
     Logs MFA status change events.
@@ -1259,7 +1273,7 @@ def log_mfa_status_change(
             "device_added": EventType.MFA_DEVICE_ADDED,
             "device_removed": EventType.MFA_DEVICE_REMOVED,
         }
-        event_type = event_type_map.get(change_type, EventType.MFA_STATUS_ENABLED)
+        event_type = event_type_map.get(mfa_change_type, EventType.MFA_STATUS_ENABLED)
         
         # Create the log event
         event = _create_base_log_event(
@@ -1305,8 +1319,8 @@ def log_password_change_reset(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # Change type
-    change_type: str = "change"  # "change", "reset"
+    # Password action type
+    password_action: str = "change"  # "change", "reset"
 ) -> Dict[str, str]:
     """
     Logs password change/reset events.
@@ -1329,8 +1343,8 @@ def log_password_change_reset(
                 "message": f"Required log_specifics fields missing for password change/reset: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on change type
-        event_type = EventType.PASSWORD_CHANGE if change_type == "change" else EventType.PASSWORD_RESET
+        # Determine event type based on password action
+        event_type = EventType.PASSWORD_CHANGE if password_action == "change" else EventType.PASSWORD_RESET
         
         # Create the log event
         event = _create_base_log_event(
