@@ -332,9 +332,9 @@ def log_user_login(
     Required log_specifics fields:
     - user_agent: Browser/device info
     - user_role: Role of the user at the time of login
-    - detail: Context for success/failure (e.g., "1st time login", "invalid_credentials")
     
     Optional log_specifics fields:
+    - detail: Context for success/failure (e.g., "1st time login", "invalid_credentials")
     - device_id: Unique device identifier
     """
     try:
@@ -342,7 +342,6 @@ def log_user_login(
         event_specific_required = {
             "user_agent": user_agent,
             "user_role": user_role,
-            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -357,8 +356,13 @@ def log_user_login(
         # Validate standardized values for event-specific fields
         standardized_validations = [
             _validate_standardized_field("user_role", user_role),
-            _validate_standardized_field("detail", detail, allow_custom_for_detail=True),
         ]
+        
+        # Validate detail field only if provided
+        if detail and detail.strip():
+            standardized_validations.append(
+                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
+            )
         
         for validation in standardized_validations:
             if not validation["valid"]:
@@ -438,7 +442,6 @@ def log_mfa_challenge(
         event_specific_required = {
             "user_agent": user_agent,
             "user_role": user_role,
-            "detail": detail,
             "mfa_type": mfa_type,
         }
         
@@ -524,7 +527,6 @@ def log_user_logout(
         event_specific_required = {
             "user_agent": user_agent,
             "user_role": user_role,
-            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -698,7 +700,6 @@ def log_user_status_change(
         # Validate event-specific required fields
         event_specific_required = {
             "target_user_identifier": target_user_identifier,
-            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -953,7 +954,6 @@ def log_api_request_processed(
             "endpoint_path": endpoint_path,
             "http_method": http_method,
             "endpoint_sensitivity": endpoint_sensitivity,
-            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -970,8 +970,13 @@ def log_api_request_processed(
             _validate_standardized_field("auth_protocol", auth_protocol),
             _validate_standardized_field("http_method", http_method),
             _validate_standardized_field("endpoint_sensitivity", endpoint_sensitivity),
-            _validate_standardized_field("detail", detail, allow_custom_for_detail=True),
         ]
+        
+        # Validate detail field only if provided
+        if detail and detail.strip():
+            standardized_validations.append(
+                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
+            )
         
         for validation in standardized_validations:
             if not validation["valid"]:

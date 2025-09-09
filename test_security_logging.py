@@ -297,6 +297,29 @@ class TestUserLoginFunction(unittest.TestCase):
         # Should catch the invalid user_role in event-specific validation
         self.assertIn("Invalid user_role value", result["message"])
 
+    def test_user_login_without_detail_field(self):
+        """Test user login without detail field (should be optional)."""
+        result = security_logging_sns.log_user_login(
+            actor_identifier="user@company.com",
+            actor_type=ActorType.HUMAN_INTERNAL,
+            session_id="session-123",
+            cloud_env_type=CloudEnvType.TEST,
+            service_name="test-service",
+            cloud_env_unique_id="123456789012",
+            cloud_env_name="test-env",
+            service_account_id="sa-test@project.iam",
+            user_agent="Mozilla/5.0",
+            user_role=UserRole.ADMIN,
+            # detail field omitted - should be optional
+            login_successful=True
+        )
+        
+        self.assertEqual(result["status"], "success")
+        
+        # Parse the JSON message to verify detail field is not present
+        message = json.loads(result["message_content"])
+        self.assertNotIn("detail", message)
+
 
 class TestAPIRequestFunction(unittest.TestCase):
     """Test API request logging function."""

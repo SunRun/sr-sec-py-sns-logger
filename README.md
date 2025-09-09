@@ -51,7 +51,7 @@ result = security_logging_sns.log_user_login(
     service_account_id="sa-logger@project.iam.gserviceaccount.com",
     user_agent="Mozilla/5.0",
     user_role=UserRole.ADMIN,
-    detail="First login of the day",
+    detail=Detail.USER_INITIATED,
     login_successful=True
 )
 
@@ -102,7 +102,7 @@ def authenticate_user(username, password, request_info):
             source_ip_address=request_info["client_ip"],
             user_agent=request_info["user_agent"],
             user_role=UserRole.ADMIN,
-            detail="Successful admin login",
+            detail=Detail.USER_INITIATED,
             login_successful=True
         )
         
@@ -614,15 +614,15 @@ result = security_logging_sns.log_user_login(
 result = security_logging_sns.log_user_login(
     actor_type="human",  # Invalid
     user_role="admin",   # Invalid
-    detail="bad login"   # Invalid for failure cases
+    detail="custom text"   # Should use standardized Detail constants for failures
 )
 ```
 
 #### 5. Provide Meaningful Details
 ```python
-# ✅ Good - Specific, actionable details
+# ✅ Good - Use standardized success context
 security_logging_sns.log_user_login(
-    detail="First successful login after password reset",
+    detail=Detail.USER_INITIATED,
     login_successful=True
 )
 
@@ -730,7 +730,7 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "cloud_service_api_type": "aws_lambda",
   "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
   "user_role": "role.classification.admin",
-  "detail": "1st time login",
+  "detail": "detail.trigger.user_initiated",
   "device_id": "device-123"
 }
 ```
@@ -779,7 +779,7 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "endpoint_path": "/api/v1/users/profile",
   "http_method": "http.method.GET",
   "endpoint_sensitivity": "sensitivity.level.confidential",
-  "detail": "Successful API call"
+  "detail": "detail.not_applicable"
 }
 ```
 

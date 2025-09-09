@@ -38,7 +38,7 @@ def main():
         # Event-specific fields
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=UserRole.ADMIN,
-        detail="1st time login",
+        detail=Detail.USER_INITIATED,
         device_id="device-xyz789",
         login_successful=True
     )
@@ -245,7 +245,7 @@ def main():
         # Event-specific fields
         user_agent="Mozilla/5.0",
         user_role="invalid_role",  # This should fail validation
-        detail="1st time login",
+        detail=Detail.USER_INITIATED,
         login_successful=True
     )
     print(f"Result: {result}\n")
