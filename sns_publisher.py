@@ -68,8 +68,9 @@ class SNSPublisher:
             Dict with "status" key ("success" or "failure") and optional "message" key on failure.
         """
         try:
-            # Add a timestamp to the log record
-            log_details['timestamp'] = datetime.now(timezone.utc).isoformat()
+            # Add a timestamp to the log record if not already present
+            if 'timestamp' not in log_details or not log_details['timestamp']:
+                log_details['timestamp'] = datetime.now(timezone.utc).isoformat()
 
             # The message must be a JSON string
             message = json.dumps(log_details, indent=2)
