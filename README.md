@@ -1,6 +1,6 @@
 # sr-sec-py-sns-logger
 
-A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This library ensures all security events are consistently formatted and delivered to your security logging pipeline.
+A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This library ensures all security events are consistently formatted and delivered to your security logging pipeline with comprehensive validation.
 
 **Key Features:**
 - 🔒 **Security-First**: Designed specifically for security event logging
@@ -8,6 +8,8 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - ✅ **Compliance**: Covers all High priority security events with required data points
 - 🧪 **Test Mode**: Test without AWS credentials for development and validation
 - 📦 **Simple API**: One-line initialization, clean function calls
+- 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
+- 📋 **Schema Compliant**: Implements standardized base_log + log_specifics structure
 
 ##  📦 Installation
 This module is intended to be copied or included as a submodule in your project's repository. There are no external dependencies beyond the standard AWS SDK.
@@ -50,6 +52,167 @@ def lambda_handler(event, context):
     # Your application logic starts here
     ...
 ```
+
+## 📋 Schema Structure
+
+This module implements a standardized two-part logging schema:
+
+### 1. Base Log Schema (base_log)
+**Required fields for every log entry:**
+
+| Field Name | Description | Example Value | Required |
+|------------|-------------|---------------|----------|
+| `timestamp` | Event timestamp in UTC | `"2025-09-08T20:25:51.000Z"` | ✅ (auto-generated if empty) |
+| `event_type` | Dot-notation event identifier | `"authn.login.success"`, `"authz.role.assign"` | ✅ |
+| `log_category` | High-level event category | `"authn_n_session"` | ✅ |
+| `status` | Event outcome | `"status.general.success"` | ✅ |
+| `actor_identifier` | Unique actor identifier | `"user@company.com"` | ✅ |
+| `actor_type` | Standardized actor type | `"actor.human.internal"` | ✅ |
+| `session_id` | Session identifier | `"session-abc-123"` | ✅ |
+| `cloud_env_type` | Environment type | `"prod"`, `"stage"`, `"dev"` | ✅ |
+| `service_name` | Application/service name | `"elephant_mfe"` | ✅ |
+| `cloud_env_unique_id` | Cloud environment ID | `"aws_account_id"` | ✅ |
+| `cloud_env_name` | Environment name | `"ai_team"` | ✅ |
+| `service_account_id` | Service account ID | `"sa-log-writer@project.iam"` | ✅ |
+| `source_ip_address` | Source IP address | `"203.0.113.54"` | ❌ Optional |
+| `cloud_service_api_type` | Cloud service type | `"aws_lambda"` | ❌ Optional |
+
+### 2. Event-Specific Fields (log_specifics)
+Additional required fields based on the specific event type. The `detail` field provides context and uses standardized values:
+
+#### Authentication & Session Events
+| Event Type | Required Fields | Optional Fields | Detail Field Usage |
+|------------|----------------|-----------------|-------------------|
+| **User Login** (`authn.login.success`, `authn.login.failure`) | `user_agent`, `user_role`, `detail` | `device_id` | Success: "1st time login", "login with a successful MFA"<br>Failure: `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
+| **MFA Challenge** (`authn.mfa.challenge_success`, `authn.mfa.challenge_failure`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
+| **User Logout** (`authn.logout.*`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
+
+#### Authorization & Access Events
+| Event Type | Required Fields | Detail Field Usage |
+|------------|----------------|-------------------|
+| **Permission/Role/Group Change** (`authz.permission.*`, `authz.role.*`, `authz.group_membership.*`) | `target_user_identifier`, `object_changed`, `previous_value`, `new_value` | N/A |
+| **User Status Change** (`authz.user.status_*`) | `target_user_identifier`, `detail` | `detail.trigger.admin_initiated`, `detail.trigger.system_policy_violation` |
+| **Impersonation** (`authz.impersonation.*`) | `target_user_identifier` | N/A |
+| **User Invite** (`authz.invite.*`) | `target_user_email`, `assigned_role`, `invite_status` | N/A |
+
+#### API Endpoint Access Events
+| Event Type | Required Fields | Detail Field Usage |
+|------------|----------------|-------------------|
+| **API Request** (`api.request.success`, `api.request.failure`) | `auth_protocol`, `endpoint_path`, `http_method`, `endpoint_sensitivity`, `detail` | Success: "Successful API call"<br>Failure: `detail.auth.token_expired`, `detail.client.invalid_request` |
+
+#### Customer Data Actions Events
+| Event Type | Required Fields |
+|------------|----------------|
+| **Multi-Record Actions** (`data.customer.list.*`, `data.report.*`) | `endpoint_path`, `data_sensitivity_level`, `record_count`, `customer_id_list` |
+| **Single-Record Actions** (`data.customer.record.*`) | `customer_id`, `fields_accessed` |
+
+#### Key Configuration Changes Events
+| Event Type | Required Fields |
+|------------|----------------|
+| **MFA Status Change** (`authn.mfa.status_*`, `authn.mfa.device_*`) | `target_object`, `mfa_id` |
+| **Password Change/Reset** (`authn.password.*`) | `target_object` |
+| **API Key Lifecycle** (`api_key.*`) | `target_object` |
+| **Auth Mechanism Modification** (`authn.sso.config_*`, `authn.local_auth.config_*`) | `target_object` |
+
+### 🛡️ Validation & Error Handling
+
+The module provides comprehensive validation:
+
+1. **Crash-Safe**: All function parameters have empty string defaults
+2. **Base Field Validation**: Returns failure message if required base_log fields are missing
+3. **Event-Specific Validation**: Returns failure message if required log_specifics fields are missing
+4. **Never Crashes**: Invalid calls return `{"status": "failure", "message": "..."}` instead of throwing exceptions
+
+**Example validation failure:**
+```python
+# Missing required fields
+result = security_logging_sns.log_user_login(
+    actor_identifier="user@company.com"
+    # Missing other required fields
+)
+# Returns: {"status": "failure", "message": "Required base_log fields missing: actor_type, session_id, cloud_env_type, service_name, cloud_env_unique_id, cloud_env_name, service_account_id"}
+```
+
+## 📊 **Standardized Values Reference**
+
+This section provides the complete list of standardized values for all fields to ensure consistency across your security logs.
+
+### Event Types by Category
+
+#### Authentication & Session
+- `authn.login.success`, `authn.login.failure`
+- `authn.logout.user_initiated`, `authn.logout.session_timeout`, `authn.logout.admin_initiated`
+- `authn.mfa.challenge_success`, `authn.mfa.challenge_failure`
+- `authn.password.change`, `authn.password.reset`
+- `authn.mfa.status_enabled`, `authn.mfa.status_disabled`, `authn.mfa.device_added`, `authn.mfa.device_removed`
+- `authn.sso.config_created`, `authn.sso.config_modified`, `authn.sso.config_deleted`
+- `authn.local_auth.config_enabled`, `authn.local_auth.config_disabled`
+
+#### Authorization & Access
+- `authz.permission.grant`, `authz.permission.revoke`
+- `authz.role.assign`, `authz.role.unassign`
+- `authz.group_membership.add`, `authz.group_membership.remove`
+- `authz.user.status_enabled`, `authz.user.status_disabled`, `authz.user.status_deleted`, `authz.user.status_locked`, `authz.user.status_unlocked`
+- `authz.impersonation.start`, `authz.impersonation.stop`
+- `authz.invite.sent`, `authz.invite.accepted`, `authz.invite.revoked`, `authz.invite.expired`
+
+#### Customer Data Actions
+- `data.customer.record.view`, `data.customer.record.modify`
+- `data.customer.list.view`, `data.customer.list.modify`
+- `data.report.export`, `data.report.download`
+
+#### API Endpoint Access
+- `api.request.success`, `api.request.failure`
+
+#### Key Configuration Changes
+- `api_key.created`, `api_key.revoked`, `api_key.permissions_modified`
+
+### Status Values
+- `status.general.success`
+- `status.general.failure`
+
+### Actor Types
+- `actor.human.internal`, `actor.human.partner`, `actor.human.customer`
+- `actor.service.internal`, `actor.service.partner`, `actor.service.customer`
+- `actor.system.self`
+
+### Authentication Protocols
+- `auth.protocol.api_key`, `auth.protocol.oauth2.jwt`, `auth.protocol.oauth2.client_credentials`
+- `auth.protocol.oauth2.authorization_code`, `auth.protocol.oauth2.implicit`, `auth.protocol.oauth2.password_grant`
+- `auth.protocol.saml`, `auth.protocol.oidc`, `auth.protocol.session_cookie`
+- `auth.protocol.m2m_token`, `auth.protocol.none`
+
+### HTTP Methods
+- `http.method.GET`, `http.method.POST`, `http.method.PUT`, `http.method.PATCH`
+- `http.method.DELETE`, `http.method.HEAD`, `http.method.OPTIONS`
+
+### Sensitivity Levels (Data & Endpoints)
+- `sensitivity.level.public`, `sensitivity.level.internal`, `sensitivity.level.confidential`
+- `sensitivity.level.pii_basic`, `sensitivity.level.pii_financial`, `sensitivity.level.pii_health`
+- `sensitivity.level.credential_management`, `sensitivity.level.system_admin`, `sensitivity.level.authentication`
+
+### Detail Field Values
+
+The `detail` field provides context for events and uses these standardized values:
+
+#### Authentication & Session - Failure Focus at Login
+- `detail.auth.invalid_credentials`, `detail.auth.account_locked`, `detail.auth.ip_restricted`
+- `detail.auth.mfa_required`, `detail.auth.policy_violation`, `detail.auth.captcha_failure`
+- `detail.auth.token_expired`, `detail.auth.token_invalid`, `detail.auth.unauthorized_access`
+- `detail.auth.rate_limit_exceeded`
+
+#### Action/Status Change Triggers (Generic)
+- `detail.trigger.user_initiated`, `detail.trigger.admin_initiated`, `detail.trigger.system_automated`
+- `detail.trigger.system_policy_violation`, `detail.trigger.session_timeout`, `detail.trigger.concurrent_session`
+- `detail.trigger.failed_attempts_threshold`
+
+#### General System/Operational (Generic)
+- `detail.system.internal_error`, `detail.system.service_unavailable`, `detail.system.maintenance`
+- `detail.client.invalid_request`, `detail.not_applicable`
+
+### User Roles (Examples - Replace with Your System's Roles)
+- `role.classification.admin`, `role.classification.sales_rep`, `role.classification.customer_support`
+- `role.classification.partner_admin`, `role.classification.customer_user`
 
 **Alternative initialization with explicit parameters:**
 ```python
@@ -107,57 +270,68 @@ else:
 
 ```python
 import security_logging_sns
-from security_log_fields import AuthorizationStatus, UserType, ActionType
+from security_log_fields import ActorType, CloudEnvType, CloudServiceApiType, UserRole, AuthProtocol, HttpMethod, EndpointSensitivity, DataSensitivityLevel
 
 # Initialize once at application startup
 security_logging_sns.init_security_logging()
 
-# Define base log details (common to all events in this execution)
-base_log_details = {
-    "service_name": "user-management-api",
-    "cloud_service_api_type": "aws_lambda",
-    "cloud_env_type": "production",
-    "cloud_env_name": "prod-us-east-1",
-    "service_account_id": "123456789012",
-    "aws_request_id": "req-abc123"
-}
-
-# Example 1: User login
+# Example 1: User login success
 result = security_logging_sns.log_user_login(
-    base_log_details=base_log_details,
-    status=AuthorizationStatus.SUCCESS,
+    # Base log fields
+    actor_identifier="alice@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
     session_id="session-xyz789",
-    user_identifier="alice@company.com",
-    user_type=UserType.INTERNAL,
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="user-management-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
     source_ip_address="192.168.1.100",
+    cloud_service_api_type=CloudServiceApiType.AWS_LAMBDA,
+    # Event-specific fields
     user_agent="Mozilla/5.0 (compatible)",
-    user_role="developer"
+    user_role=UserRole.ADMIN,
+    detail="1st time login",
+    device_id="device-123",
+    login_successful=True
 )
 
 # Example 2: Single customer record access
 result = security_logging_sns.log_single_record_access(
-    base_log_details=base_log_details,
-    user_identifier="alice@company.com",
-    source_ip_address="192.168.1.100",
-    customer_id="customer-12345",
-    action_type=ActionType.VIEWED,
-    fields_accessed=["name", "email", "phone"],
+    # Base log fields
+    actor_identifier="alice@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
     session_id="session-xyz789",
-    actor_user_type=UserType.INTERNAL
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="customer-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-customer-api@project.iam.gserviceaccount.com",
+    source_ip_address="192.168.1.100",
+    # Event-specific fields
+    customer_id="customer-12345",
+    fields_accessed=["name", "email", "phone"],
+    action_type="view"
 )
 
 # Example 3: Multi-record customer data access
 result = security_logging_sns.log_multi_record_access(
-    base_log_details=base_log_details,
-    user_identifier="alice@company.com",
-    source_ip_address="192.168.1.100",
-    action_type=ActionType.EXPORTED,
-    record_count=1500,
+    # Base log fields
+    actor_identifier="alice@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
     session_id="session-xyz789",
-    actor_user_type=UserType.INTERNAL,
-    customer_id_list=["cust-001", "cust-002", "cust-003"],
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="data-export-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-data-export@project.iam.gserviceaccount.com",
+    source_ip_address="192.168.1.100",
+    # Event-specific fields
     endpoint_path="/api/v1/customers/export",
-    data_sensitivity_level="Confidential-PII"
+    data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+    record_count=1500,
+    customer_id_list=["cust-001", "cust-002", "cust-003"],
+    action_type="export"
 )
 ```
 
@@ -168,316 +342,311 @@ This section shows the exact JSON structure for all security event types that th
 ### User Login Success
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:06:12.359032+00:00",
+  "event_type": "authn.login.success",
   "log_category": "authn_n_session",
-  "event_type": "login_success",
-  "status": "Success",
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
   "session_id": "session-xyz789",
-  "user_identifier": "alice@company.com",
-  "user_type": "internal",
+  "cloud_env_type": "prod",
+  "service_name": "user-management-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
   "source_ip_address": "192.168.1.100",
+  "cloud_service_api_type": "aws_lambda",
   "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-  "user_role": "developer",
-  "device_id": "device-123",
-  "context": "web_application",
-  "timestamp": "2025-09-05T20:34:36.501644+00:00"
+  "user_role": "role.classification.admin",
+  "detail": "1st time login",
+  "device_id": "device-123"
 }
 ```
 
 ### User Login Failure
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:06:12.359049+00:00",
+  "event_type": "authn.login.failure",
   "log_category": "authn_n_session",
-  "event_type": "login_failure",
-  "status": "Failure",
+  "status": "status.general.failure",
+  "actor_identifier": "attacker@external.com",
+  "actor_type": "actor.human.customer",
   "session_id": "session-def456",
-  "user_identifier": "attacker@external.com",
-  "user_type": "customer",
+  "cloud_env_type": "prod",
+  "service_name": "user-management-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
   "source_ip_address": "203.0.113.42",
+  "cloud_service_api_type": "aws_lambda",
   "user_agent": "curl/7.68.0",
-  "user_role": "guest",
-  "reason": "invalid_credentials",
-  "timestamp": "2025-09-05T20:34:36.501849+00:00"
+  "user_role": "role.classification.customer_user",
+  "detail": "detail.auth.invalid_credentials"
 }
 ```
 
 ### MFA Challenge Success
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:06:12.359119+00:00",
+  "event_type": "authn.mfa.challenge_success",
   "log_category": "authn_n_session",
-  "event_type": "mfa_challenge",
-  "status": "Success",
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
   "session_id": "session-xyz789",
-  "user_identifier": "alice@company.com",
-  "user_type": "internal",
+  "cloud_env_type": "prod",
+  "service_name": "auth-service",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-auth@project.iam.gserviceaccount.com",
   "source_ip_address": "192.168.1.100",
+  "cloud_service_api_type": "aws_lambda",
   "user_agent": "Mozilla/5.0 (compatible)",
-  "user_role": "developer",
-  "mfa_type": "okta_verify",
-  "timestamp": "2025-09-05T20:34:36.501874+00:00"
+  "user_role": "role.classification.sales_rep",
+  "detail": "login with a successful MFA",
+  "mfa_type": "okta verify",
+  "device_id": "mobile-device-123"
 }
 ```
 
 ### API Request Processed
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091014+00:00",
+  "event_type": "api.request.success",
   "log_category": "api_endpoint_access",
-  "event_type": "api_request_processed",
-  "source_ip_address": "192.168.1.100",
-  "auth_protocol": "oauth2_jwt",
-  "client_id": "mobile-app-v2.1",
-  "client_type": "mobile_application",
+  "status": "status.general.success",
+  "actor_identifier": "api-client-xyz",
+  "actor_type": "actor.api.client",
+  "session_id": "api-session-789",
+  "cloud_env_type": "prod",
+  "service_name": "api-gateway",
+  "cloud_env_unique_id": "555666777888",
+  "cloud_env_name": "production-api",
+  "service_account_id": "sa-api@project.iam.gserviceaccount.com",
+  "source_ip_address": "10.0.1.50",
+  "cloud_service_api_type": "aws_lambda",
+  "auth_protocol": "auth.protocol.oauth2.jwt",
   "endpoint_path": "/api/v1/users/profile",
-  "http_method": "GET",
-  "authorization_status": "Success",
-  "endpoint_sensitivity": "confidential",
-  "session_id": "session-xyz789",
-  "timestamp": "2025-09-05T20:34:36.501900+00:00"
+  "http_method": "http.method.GET",
+  "endpoint_sensitivity": "sensitivity.level.confidential",
+  "detail": "Successful API call"
 }
 ```
 
 ### Permission Change
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091070+00:00",
+  "event_type": "authz.role.assign",
   "log_category": "authz_n_access",
-  "event_type": "permission_change",
-  "actor_user_identifier": "admin@company.com",
+  "status": "status.general.success",
+  "actor_identifier": "admin@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-admin-002",
+  "cloud_env_type": "prod",
+  "service_name": "user-management",
+  "cloud_env_unique_id": "999888777666",
+  "cloud_env_name": "production-mgmt",
+  "service_account_id": "sa-mgmt@project.iam.gserviceaccount.com",
   "target_user_identifier": "alice@company.com",
-  "session_id": "session-admin-789",
-  "object_changed": "user_role",
+  "object_changed": "Role",
   "previous_value": "developer",
-  "new_value": "senior_developer",
-  "user_type": "internal",
-  "timestamp": "2025-09-05T20:34:36.501921+00:00"
+  "new_value": "senior_developer"
 }
 ```
 
 ### Impersonation Start
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091095+00:00",
+  "event_type": "authz.impersonation.start",
   "log_category": "authz_n_access",
-  "event_type": "impersonation_event",
-  "actor_user_identifier": "support@company.com",
-  "actor_session_id": "session-support-123",
-  "target_user_identifier": "customer@external.com",
-  "action_type": "impersonation_start",
-  "actor_user_type": "internal",
-  "timestamp": "2025-09-05T20:34:36.501949+00:00"
+  "status": "status.general.success",
+  "actor_identifier": "support@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-support-123",
+  "cloud_env_type": "prod",
+  "service_name": "support-portal",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-support@project.iam.gserviceaccount.com",
+  "target_user_identifier": "customer@external.com"
 }
 ```
 
 ### MFA Configuration Change
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091120+00:00",
+  "event_type": "authn.mfa.status_enabled",
   "log_category": "key_config_changes",
-  "event_type": "key_configuration_change",
-  "actor_user_identifier": "alice@company.com",
-  "actor_session_id": "session-xyz789",
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-xyz789",
+  "cloud_env_type": "prod",
+  "service_name": "security-service",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-security@project.iam.gserviceaccount.com",
   "target_object": "user-alice",
-  "change_type": "mfa_enabled",
-  "status": "Success",
-  "actor_user_type": "internal",
-  "mfa_id": "mfa-device-456",
-  "timestamp": "2025-09-05T20:34:36.502026+00:00"
+  "mfa_id": "mfa-device-456"
 }
 ```
 
 ### Single Customer Record Access
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091140+00:00",
+  "event_type": "data.customer.record.view",
   "log_category": "customer_data_actions",
-  "event_type": "single_record_access",
-  "user_identifier": "alice@company.com",
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-xyz789",
+  "cloud_env_type": "prod",
+  "service_name": "customer-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-customer-api@project.iam.gserviceaccount.com",
   "source_ip_address": "192.168.1.100",
   "customer_id": "customer-12345",
-  "action_type": "record_viewed",
   "fields_accessed": [
     "name",
-    "email", 
+    "email",
     "phone"
-  ],
-  "session_id": "session-xyz789",
-  "actor_user_type": "internal",
-  "timestamp": "2025-09-05T18:29:48.624756+00:00"
+  ]
 }
 ```
 
 ### Multi-Record Customer Data Export
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091043+00:00",
+  "event_type": "data.report.export",
   "log_category": "customer_data_actions",
-  "event_type": "multi_record_access",
-  "user_identifier": "alice@company.com",
-  "source_ip_address": "192.168.1.100",
-  "action_type": "exported",
-  "record_count": 1500,
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
   "session_id": "session-xyz789",
-  "actor_user_type": "internal",
+  "cloud_env_type": "prod",
+  "service_name": "data-export-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-data-export@project.iam.gserviceaccount.com",
+  "source_ip_address": "192.168.1.100",
+  "endpoint_path": "/api/v1/customers/bulk-export",
+  "data_sensitivity_level": "sensitivity.level.pii_basic",
+  "record_count": 250,
   "customer_id_list": [
     "cust-001",
     "cust-002",
     "cust-003"
-  ],
-  "endpoint_path": "/api/v1/customers/export",
-  "data_sensitivity_level": "Confidential-PII",
-  "timestamp": "2025-09-05T18:29:58.892500+00:00"
+  ]
 }
 ```
 
 ### User Logout
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091160+00:00",
+  "event_type": "authn.logout.user_initiated",
   "log_category": "authn_n_session",
-  "event_type": "logout",
-  "status": "Success",
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
   "session_id": "session-xyz789",
-  "user_identifier": "alice@company.com",
-  "user_type": "internal",
+  "cloud_env_type": "prod",
+  "service_name": "user-management-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
   "source_ip_address": "192.168.1.100",
   "user_agent": "Mozilla/5.0 (compatible)",
-  "reason": "user_initiated",
-  "timestamp": "2025-09-05T20:36:52.335450+00:00"
+  "user_role": "developer",
+  "detail": "detail.trigger.user_initiated"
 }
 ```
 
 ### User Status Change (Disabled)
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091180+00:00",
+  "event_type": "authz.user.status_disabled",
   "log_category": "authz_n_access",
-  "event_type": "user_status_change",
-  "actor_user_identifier": "admin@company.com",
+  "status": "status.general.success",
+  "actor_identifier": "admin@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-admin-456",
+  "cloud_env_type": "prod",
+  "service_name": "user-management-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
   "target_user_identifier": "bob@company.com",
-  "action_type": "user_disabled",
-  "actor_user_type": "internal",
-  "reason": "policy_violation",
-  "timestamp": "2025-09-05T20:36:52.335655+00:00"
+  "detail": "detail.trigger.admin_initiated"
 }
 ```
 
 ### User Invite Sent
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091200+00:00",
+  "event_type": "authz.invite.sent",
   "log_category": "authz_n_access",
-  "event_type": "user_invite_event",
-  "actor_user_identifier": "admin@company.com",
+  "status": "status.general.success",
+  "actor_identifier": "admin@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-admin-789",
+  "cloud_env_type": "prod",
+  "service_name": "user-management-api",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
   "target_user_email": "newuser@company.com",
   "assigned_role": "developer",
-  "invite_status": "sent",
-  "actor_user_type": "internal",
-  "timestamp": "2025-09-05T20:36:52.335676+00:00"
+  "invite_status": "sent"
 }
 ```
 
 ### Password Configuration Change
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091220+00:00",
+  "event_type": "authn.password.change",
   "log_category": "key_config_changes",
-  "event_type": "key_configuration_change",
-  "actor_user_identifier": "alice@company.com",
-  "actor_session_id": "session-xyz789",
-  "target_object": "user-alice",
-  "change_type": "password_change",
-  "status": "Success",
-  "actor_user_type": "internal",
-  "timestamp": "2025-09-05T20:36:52.335692+00:00"
+  "status": "status.general.success",
+  "actor_identifier": "alice@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-xyz789",
+  "cloud_env_type": "prod",
+  "service_name": "security-service",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-security@project.iam.gserviceaccount.com",
+  "target_object": "user-alice"
 }
 ```
 
 ### API Key Configuration Change
 ```json
 {
-  "service_name": "user-management-api",
-  "cloud_service_api_type": "aws_lambda",
-  "cloud_env_type": "production",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "123456789012",
-  "aws_request_id": "req-abc123",
+  "timestamp": "2025-09-09T19:10:27.091240+00:00",
+  "event_type": "api_key.created",
   "log_category": "key_config_changes",
-  "event_type": "key_configuration_change",
-  "actor_user_identifier": "admin@company.com",
-  "actor_session_id": "session-admin-789",
-  "target_object": "api-client-123",
-  "change_type": "api_key_created",
-  "status": "Success",
-  "actor_user_type": "internal",
-  "timestamp": "2025-09-05T20:36:52.335710+00:00"
+  "status": "status.general.success",
+  "actor_identifier": "admin@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-admin-789",
+  "cloud_env_type": "prod",
+  "service_name": "api-management",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "prod-us-east-1",
+  "service_account_id": "sa-api-mgmt@project.iam.gserviceaccount.com",
+  "target_object": "api-client-123"
 }
 ```
 
