@@ -23,63 +23,71 @@ class LogCategory:
     CUSTOMER_DATA_ACTIONS = "customer_data_actions"
     KEY_CONFIG_CHANGES = "key_config_changes"
 
-# Event types using standardized dot notation format
+# Event types - simplified based on specification
 class EventType:
     # Authentication & Session
-    LOGIN_SUCCESS = "authn.login.success"
-    LOGIN_FAILURE = "authn.login.failure"
-    LOGOUT_USER_INITIATED = "authn.logout.user_initiated"
-    LOGOUT_SESSION_TIMEOUT = "authn.logout.session_timeout"
-    LOGOUT_ADMIN_INITIATED = "authn.logout.admin_initiated"
-    MFA_CHALLENGE_SUCCESS = "authn.mfa.challenge_success"
-    MFA_CHALLENGE_FAILURE = "authn.mfa.challenge_failure"
-    PASSWORD_CHANGE = "authn.password.change"
-    PASSWORD_RESET = "authn.password.reset"
-    MFA_STATUS_ENABLED = "authn.mfa.status_enabled"
-    MFA_STATUS_DISABLED = "authn.mfa.status_disabled"
-    MFA_DEVICE_ADDED = "authn.mfa.device_added"
-    MFA_DEVICE_REMOVED = "authn.mfa.device_removed"
-    SSO_CONFIG_CREATED = "authn.sso.config_created"
-    SSO_CONFIG_MODIFIED = "authn.sso.config_modified"
-    SSO_CONFIG_DELETED = "authn.sso.config_deleted"
-    LOCAL_AUTH_CONFIG_ENABLED = "authn.local_auth.config_enabled"
-    LOCAL_AUTH_CONFIG_DISABLED = "authn.local_auth.config_disabled"
+    LOGIN_SUCCESS = "login_success"
+    LOGIN_FAILURE = "login_failure" 
+    USER_LOGOUT = "user_logout"
+    MFA_CHALLENGE = "mfa_challenge"
     
     # Authorization & Access
-    PERMISSION_GRANT = "authz.permission.grant"
-    PERMISSION_REVOKE = "authz.permission.revoke"
-    ROLE_ASSIGN = "authz.role.assign"
-    ROLE_UNASSIGN = "authz.role.unassign"
-    GROUP_MEMBERSHIP_ADD = "authz.group_membership.add"
-    GROUP_MEMBERSHIP_REMOVE = "authz.group_membership.remove"
-    USER_STATUS_ENABLED = "authz.user.status_enabled"
-    USER_STATUS_DISABLED = "authz.user.status_disabled"
-    USER_STATUS_DELETED = "authz.user.status_deleted"
-    USER_STATUS_LOCKED = "authz.user.status_locked"
-    USER_STATUS_UNLOCKED = "authz.user.status_unlocked"
-    IMPERSONATION_START = "authz.impersonation.start"
-    IMPERSONATION_STOP = "authz.impersonation.stop"
-    INVITE_SENT = "authz.invite.sent"
-    INVITE_ACCEPTED = "authz.invite.accepted"
-    INVITE_REVOKED = "authz.invite.revoked"
-    INVITE_EXPIRED = "authz.invite.expired"
-    
-    # Customer Data Actions
-    CUSTOMER_RECORD_VIEW = "data.customer.record.view"
-    CUSTOMER_RECORD_MODIFY = "data.customer.record.modify"
-    CUSTOMER_LIST_VIEW = "data.customer.list.view"
-    CUSTOMER_LIST_MODIFY = "data.customer.list.modify"
-    REPORT_EXPORT = "data.report.export"
-    REPORT_DOWNLOAD = "data.report.download"
-    
-    # Key Configuration Changes
-    API_KEY_CREATED = "api_key.created"
-    API_KEY_REVOKED = "api_key.revoked"
-    API_KEY_PERMISSIONS_MODIFIED = "api_key.permissions_modified"
+    PERMISSION_CHANGE = "permission_change"
+    USER_STATUS_CHANGE = "user_status_change"
+    IMPERSONATION_EVENT = "impersonation_event"
+    USER_INVITE_EVENT = "user_invite_event"
     
     # API Endpoint Access
-    API_REQUEST_SUCCESS = "api.request.success"
-    API_REQUEST_FAILURE = "api.request.failure"
+    API_REQUEST_PROCESSED = "api_request_processed"
+    
+    # Customer Data Actions
+    MULTI_RECORD_ACCESS = "multi_record_access"
+    SINGLE_RECORD_ACCESS = "single_record_access"
+    
+    # Key Configuration Changes
+    MFA_STATUS_CHANGE = "mfa_status_change"
+    PASSWORD_CHANGE_RESET = "password_change_reset"
+    API_KEY_LIFECYCLE = "api_key_lifecycle"
+    AUTH_MECHANISM_MODIFICATION = "auth_mechanism_modification"
+
+# Action types for different event categories
+class ActionType:
+    # User Status Actions
+    USER_DISABLED = "user_disabled"
+    USER_ENABLED = "user_enabled" 
+    USER_DELETED = "user_deleted"
+    USER_LOCKED = "user_locked"
+    USER_UNLOCKED = "user_unlocked"
+    
+    # Impersonation Actions
+    IMPERSONATION_START = "impersonation_start"
+    IMPERSONATION_STOP = "impersonation_stop"
+    
+    # Customer Data Actions
+    VIEW_LIST = "view_list"
+    MODIFY_CUSTOMER_DATA = "modify_customer_data"
+    EXPORT_REPORT = "export_report"
+    VIEW_RECORD = "view_record"
+    EDIT_RECORD = "edit_record"
+    
+    # MFA Actions
+    MFA_DISABLED = "mfa_disabled"
+    MFA_ENABLED = "mfa_enabled"
+    NEW_MFA_DEVICE = "new_mfa_device"
+    
+    # Password Actions
+    PASSWORD_CHANGE = "password_change"
+    PASSWORD_RESET = "password_reset"
+    
+    # API Key Actions
+    API_KEY_CREATED = "api_key_created"
+    API_KEY_REVOKED = "api_key_revoked"
+    API_KEY_PERMISSIONS_MODIFIED = "api_key_permissions_modified"
+    
+    # Auth Mechanism Actions
+    NEW_SSO_PROVIDER = "new_sso_provider"
+    ENABLE_LOCAL_AUTHN = "enable_local_authn"
+    DISABLE_SSO = "disable_sso"
 
 # Authentication protocols using standardized format
 class AuthProtocol:
@@ -211,3 +219,48 @@ class InviteStatus:
     ACCEPTED = "accepted"
     REVOKED = "revoked"
     EXPIRED = "expired"
+
+# Validation lists for standardized values
+VALID_EVENT_TYPES = [
+    EventType.LOGIN_SUCCESS,
+    EventType.LOGIN_FAILURE,
+    EventType.USER_LOGOUT,
+    EventType.MFA_CHALLENGE,
+    EventType.PERMISSION_CHANGE,
+    EventType.USER_STATUS_CHANGE,
+    EventType.IMPERSONATION_EVENT,
+    EventType.USER_INVITE_EVENT,
+    EventType.API_REQUEST_PROCESSED,
+    EventType.MULTI_RECORD_ACCESS,
+    EventType.SINGLE_RECORD_ACCESS,
+    EventType.MFA_STATUS_CHANGE,
+    EventType.PASSWORD_CHANGE_RESET,
+    EventType.API_KEY_LIFECYCLE,
+    EventType.AUTH_MECHANISM_MODIFICATION
+]
+
+VALID_ACTION_TYPES = [
+    ActionType.USER_DISABLED,
+    ActionType.USER_ENABLED,
+    ActionType.USER_DELETED,
+    ActionType.USER_LOCKED,
+    ActionType.USER_UNLOCKED,
+    ActionType.IMPERSONATION_START,
+    ActionType.IMPERSONATION_STOP,
+    ActionType.VIEW_LIST,
+    ActionType.MODIFY_CUSTOMER_DATA,
+    ActionType.EXPORT_REPORT,
+    ActionType.VIEW_RECORD,
+    ActionType.EDIT_RECORD,
+    ActionType.MFA_DISABLED,
+    ActionType.MFA_ENABLED,
+    ActionType.NEW_MFA_DEVICE,
+    ActionType.PASSWORD_CHANGE,
+    ActionType.PASSWORD_RESET,
+    ActionType.API_KEY_CREATED,
+    ActionType.API_KEY_REVOKED,
+    ActionType.API_KEY_PERMISSIONS_MODIFIED,
+    ActionType.NEW_SSO_PROVIDER,
+    ActionType.ENABLE_LOCAL_AUTHN,
+    ActionType.DISABLE_SSO
+]

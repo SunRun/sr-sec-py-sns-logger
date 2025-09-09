@@ -4,9 +4,9 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Union
 from security_log_fields import (
-    Status, ActorType, LogCategory, EventType, AuthProtocol, Detail, MfaType,
+    Status, ActorType, LogCategory, EventType, ActionType, AuthProtocol, Detail, MfaType,
     HttpMethod, CloudEnvType, CloudServiceApiType, DataSensitivityLevel,
-    EndpointSensitivity, InviteStatus, UserRole
+    EndpointSensitivity, InviteStatus, UserRole, VALID_EVENT_TYPES, VALID_ACTION_TYPES
 )
 from sns_publisher import SNSPublisher
 
@@ -50,32 +50,8 @@ def _get_publisher() -> SNSPublisher:
 def _get_valid_values_for_field(field_name: str) -> List[str]:
     """Get list of valid standardized values for a given field."""
     valid_values = {
-        "event_type": [
-            # Authentication & Session
-            EventType.LOGIN_SUCCESS, EventType.LOGIN_FAILURE,
-            EventType.LOGOUT_USER_INITIATED, EventType.LOGOUT_SESSION_TIMEOUT, EventType.LOGOUT_ADMIN_INITIATED,
-            EventType.MFA_CHALLENGE_SUCCESS, EventType.MFA_CHALLENGE_FAILURE,
-            EventType.PASSWORD_CHANGE, EventType.PASSWORD_RESET,
-            EventType.MFA_STATUS_ENABLED, EventType.MFA_STATUS_DISABLED, EventType.MFA_DEVICE_ADDED, EventType.MFA_DEVICE_REMOVED,
-            EventType.SSO_CONFIG_CREATED, EventType.SSO_CONFIG_MODIFIED, EventType.SSO_CONFIG_DELETED,
-            EventType.LOCAL_AUTH_CONFIG_ENABLED, EventType.LOCAL_AUTH_CONFIG_DISABLED,
-            # Authorization & Access
-            EventType.PERMISSION_GRANT, EventType.PERMISSION_REVOKE,
-            EventType.ROLE_ASSIGN, EventType.ROLE_UNASSIGN,
-            EventType.GROUP_MEMBERSHIP_ADD, EventType.GROUP_MEMBERSHIP_REMOVE,
-            EventType.USER_STATUS_ENABLED, EventType.USER_STATUS_DISABLED, EventType.USER_STATUS_DELETED,
-            EventType.USER_STATUS_LOCKED, EventType.USER_STATUS_UNLOCKED,
-            EventType.IMPERSONATION_START, EventType.IMPERSONATION_STOP,
-            EventType.INVITE_SENT, EventType.INVITE_ACCEPTED, EventType.INVITE_REVOKED, EventType.INVITE_EXPIRED,
-            # Customer Data Actions
-            EventType.CUSTOMER_RECORD_VIEW, EventType.CUSTOMER_RECORD_MODIFY,
-            EventType.CUSTOMER_LIST_VIEW, EventType.CUSTOMER_LIST_MODIFY,
-            EventType.REPORT_EXPORT, EventType.REPORT_DOWNLOAD,
-            # API Endpoint Access
-            EventType.API_REQUEST_SUCCESS, EventType.API_REQUEST_FAILURE,
-            # Key Configuration Changes
-            EventType.API_KEY_CREATED, EventType.API_KEY_REVOKED, EventType.API_KEY_PERMISSIONS_MODIFIED,
-        ],
+        "event_type": VALID_EVENT_TYPES,
+        "action_type": VALID_ACTION_TYPES,
         "status": [Status.SUCCESS, Status.FAILURE],
         "actor_type": [
             ActorType.HUMAN_INTERNAL, ActorType.HUMAN_PARTNER, ActorType.HUMAN_CUSTOMER,
@@ -312,6 +288,7 @@ def _create_base_log_event(
 def log_user_login(
     # Base log fields (required but with defaults to avoid crashes)
     timestamp: str = "",
+    event_type: str = "",  # "login_success" or "login_failure"
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
@@ -323,43 +300,48 @@ def log_user_login(
     # Event-specific required fields
     user_agent: str = "",
     user_role: str = "",
-    detail: str = "",
+    status: str = "",  # "status.general.success" or "status.general.failure"
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    # Determine success/failure
-    login_successful: bool = True
+    detail: str = ""  # Context like "1st time login", "invalid_credentials"
 ) -> Dict[str, str]:
     """
     Logs User Login Success and Failure events.
     
-    Required log_specifics fields:
+    Required fields:
+    - event_type: "login_success" or "login_failure"
+    - status: "status.general.success" or "status.general.failure"
     - user_agent: Browser/device info
     - user_role: Role of the user at the time of login
     
-    Optional log_specifics fields:
+    Optional fields:
     - detail: Context for success/failure (e.g., "1st time login", "invalid_credentials")
     - device_id: Unique device identifier
     """
     try:
-        # Validate event-specific required fields
-        event_specific_required = {
+        # Validate required fields including base and event-specific
+        required_fields = {
+            "event_type": event_type,
+            "status": status,
             "user_agent": user_agent,
             "user_role": user_role,
         }
         
-        missing_specific = [field for field, value in event_specific_required.items() 
-                          if not value or value.strip() == ""]
+        missing_fields = [field for field, value in required_fields.items() 
+                         if not value or value.strip() == ""]
         
-        if missing_specific:
+        if missing_fields:
             return {
                 "status": "failure", 
-                "message": f"Required log_specifics fields missing for user login: {', '.join(missing_specific)}"
+                "message": f"Required fields missing for user login: {', '.join(missing_fields)}"
             }
         
-        # Validate standardized values for event-specific fields
+        # Validate standardized values
         standardized_validations = [
+            _validate_standardized_field("event_type", event_type),
+            _validate_standardized_field("status", status),
             _validate_standardized_field("user_role", user_role),
         ]
         
@@ -372,10 +354,6 @@ def log_user_login(
         for validation in standardized_validations:
             if not validation["valid"]:
                 return {"status": "failure", "message": validation["message"]}
-        
-        # Determine event type and status based on success flag
-        event_type = EventType.LOGIN_SUCCESS if login_successful else EventType.LOGIN_FAILURE
-        status = Status.SUCCESS if login_successful else Status.FAILURE
         
         # Create the log event
         event = _create_base_log_event(
@@ -410,6 +388,7 @@ def log_user_login(
 def log_mfa_challenge(
     # Base log fields (required but with defaults to avoid crashes)
     timestamp: str = "",
+    event_type: str = "",  # "mfa_challenge"
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
@@ -421,14 +400,13 @@ def log_mfa_challenge(
     # Event-specific required fields
     user_agent: str = "",
     user_role: str = "",
-    detail: str = "",
+    status: str = "",  # "status.general.success" or "status.general.failure"
     mfa_type: str = "",
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    # Determine success/failure
-    challenge_successful: bool = True
+    detail: str = ""  # Context for success/failure
 ) -> Dict[str, str]:
     """
     Logs MFA Challenge events.
