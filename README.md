@@ -380,24 +380,13 @@ security_logging_sns.init_security_logging(test_mode=True)
 Log user authentication attempts (successful or failed).
 
 **Required Parameters:**
-- `actor_identifier` (str): User identifier (email, username, etc.)
-- `actor_type` (str): Actor type from `ActorType` constants
-- `session_id` (str): Session identifier
-- `cloud_env_type` (str): Environment type from `CloudEnvType` constants
-- `service_name` (str): Name of the service handling authentication
-- `cloud_env_unique_id` (str): Unique environment identifier
-- `cloud_env_name` (str): Environment name
-- `service_account_id` (str): Service account identifier
-- `user_agent` (str): User agent string
+- All base_log parameters
+- `user_agent` (str): Browser/device info
 - `user_role` (str): User role from `UserRole` constants
-- `detail` (str): Detail/reason from `Detail` constants or custom text
-- `login_successful` (bool): Whether login succeeded
 
 **Optional Parameters:**
-- `timestamp` (str): Custom timestamp (auto-generated if empty)
-- `source_ip_address` (str): Client IP address
-- `cloud_service_api_type` (str): API type from `CloudServiceApiType` constants
-- `device_id` (str): Device identifier
+- `detail` (str): Context for success/failure (e.g., "1st time login", "invalid_credentials")
+- `device_id` (str): Unique device identifier
 
 **Returns:** `dict` with `status` ("success" or "failure") and optional `message`
 
@@ -409,10 +398,9 @@ Log MFA challenge events.
 - `user_agent` (str): Browser/device info
 - `user_role` (str): User role from `UserRole` constants
 - `mfa_type` (str): MFA method from `MfaType` constants
-- `challenge_successful` (bool): Whether challenge succeeded
 
 **Optional Parameters:**
-- `detail` (str): Detail/reason from `Detail` constants or custom text
+- `detail` (str): Why the challenge failed or context for success
 - `device_id` (str): Unique device identifier
 
 #### `log_user_logout(...)`
@@ -422,10 +410,9 @@ Log user logout events.
 - All base_log parameters
 - `user_agent` (str): Browser/device info
 - `user_role` (str): User role from `UserRole` constants
-- `logout_trigger` (str): Logout trigger ("user_initiated", "session_timeout", "admin_initiated")
 
 **Optional Parameters:**
-- `detail` (str): Detail/reason from `Detail` constants or custom text
+- `detail` (str): Why the logout occurred (e.g., "detail.trigger.user_initiated", "detail.trigger.session_timeout")
 - `device_id` (str): Unique device identifier
 
 ### Authorization & Access Functions
@@ -453,7 +440,9 @@ Log user impersonation start/stop events.
 **Required Parameters:**
 - All base_log parameters
 - `target_user_identifier` (str): User being impersonated
-- `impersonation_action` (str): "start" or "stop"
+
+**Optional Parameters:**
+- `detail` (str): Additional context for the impersonation event
 
 #### `log_user_invite_event(...)`
 Log user invitation events.
@@ -463,6 +452,9 @@ Log user invitation events.
 - `target_user_email` (str): Invited user's email
 - `assigned_role` (str): Role assigned in invitation
 - `invite_status` (str): Status from `InviteStatus` constants
+
+**Optional Parameters:**
+- `detail` (str): Additional context for the invite event
 
 ### API & Data Access Functions
 
@@ -475,8 +467,9 @@ Log API endpoint access attempts.
 - `endpoint_path` (str): API endpoint path
 - `http_method` (str): HTTP method from `HttpMethod` constants
 - `endpoint_sensitivity` (str): Sensitivity level from `EndpointSensitivity` constants
-- `detail` (str): Detail/reason
-- `request_successful` (bool): Whether request succeeded
+
+**Optional Parameters:**
+- `detail` (str): Detail for the API request failure (if applicable)
 
 #### `log_multi_record_access(...)` / `log_single_record_access(...)`
 Log customer data access events.
@@ -517,16 +510,16 @@ Log API key management events.
 
 **Required Parameters:**
 - All base_log parameters
-- `api_key_identifier` (str): API key identifier
-- `lifecycle_event` (str): Event type ("created", "revoked", "permissions_modified")
+- `target_object` (str): The API Client ID or key that was affected
+- `detail` (str): The lifecycle action ("created", "revoked", "permissions_modified")
 
 #### `log_auth_mechanism_modification(...)`
 Log authentication mechanism changes.
 
 **Required Parameters:**
 - All base_log parameters
-- `mechanism_type` (str): Mechanism type
-- `modification_type` (str): Modification type
+- `target_object` (str): The configuration object that was changed (e.g., "sso_assertion_url", "local_authentication")
+- `detail` (str): The modification type ("sso_config_created", "sso_config_modified", "sso_config_deleted", "local_auth_enabled", "local_auth_disabled")
 
 ## ⚠️ Error Handling & Troubleshooting
 
@@ -724,7 +717,7 @@ pytest --cov=security_logging_sns --cov-report=html
 This section shows the exact JSON structure that gets sent to your SNS topic for each security event type. All examples use current standardized values and schema.
 
 ### User Login Success
-Generated by: `security_logging_sns.log_user_login(..., login_successful=True)`
+Generated by: `security_logging_sns.log_user_login(..., status=Status.SUCCESS)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.726899+00:00",
@@ -749,7 +742,7 @@ Generated by: `security_logging_sns.log_user_login(..., login_successful=True)`
 ```
 
 ### User Login Failure
-Generated by: `security_logging_sns.log_user_login(..., login_successful=False)`
+Generated by: `security_logging_sns.log_user_login(..., status=Status.FAILURE)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.727000+00:00",
@@ -774,7 +767,7 @@ Generated by: `security_logging_sns.log_user_login(..., login_successful=False)`
 ```
 
 ### MFA Challenge Success
-Generated by: `security_logging_sns.log_mfa_challenge(..., challenge_successful=True)`
+Generated by: `security_logging_sns.log_mfa_challenge(..., status=Status.SUCCESS)`
 ```json
 {
   "timestamp": "2025-09-09T20:37:47.561901+00:00",
@@ -825,7 +818,7 @@ Generated by: `security_logging_sns.log_user_logout(...)`
 ```
 
 ### API Request Success
-Generated by: `security_logging_sns.log_api_request_processed(..., request_successful=True)`
+Generated by: `security_logging_sns.log_api_request_processed(..., status=Status.SUCCESS)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.728000+00:00",
@@ -890,9 +883,12 @@ Generated by: `security_logging_sns.log_user_invite_event(...)`
   "cloud_env_unique_id": "123456789012",
   "cloud_env_name": "prod-us-east-1",
   "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
+  "source_ip_address": "",
+  "cloud_service_api_type": "",
   "target_user_email": "newuser@company.com",
   "assigned_role": "developer",
-  "invite_status": "sent"
+  "invite_status": "sent",
+  "detail": ""
 }
 ```
 
@@ -920,7 +916,7 @@ Generated by: `security_logging_sns.log_single_record_access(...)`
 ```
 
 ### API Key Creation
-Generated by: `security_logging_sns.log_api_key_lifecycle(..., lifecycle_event="created")`
+Generated by: `security_logging_sns.log_api_key_lifecycle(..., detail="created")`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.732000+00:00",
@@ -935,9 +931,10 @@ Generated by: `security_logging_sns.log_api_key_lifecycle(..., lifecycle_event="
   "cloud_env_unique_id": "123456789012",
   "cloud_env_name": "prod-us-east-1",
   "service_account_id": "sa-api-mgmt@project.iam.gserviceaccount.com",
-  "api_key_identifier": "api-key-abc123",
-  "lifecycle_event": "created",
-  "detail": "detail.trigger.admin_initiated"
+  "source_ip_address": "",
+  "cloud_service_api_type": "",
+  "target_object": "api-key-abc123",
+  "detail": "created"
 }
 ```
 

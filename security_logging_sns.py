@@ -803,6 +803,7 @@ def log_impersonation_event(
     # Event-specific required fields
     target_user_identifier: str = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     # Impersonation action
@@ -850,6 +851,7 @@ def log_impersonation_event(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -875,6 +877,7 @@ def log_user_invite_event(
     assigned_role: str = "",
     invite_status: str = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
 ) -> Dict[str, str]:
@@ -941,6 +944,7 @@ def log_user_invite_event(
             target_user_email=target_user_email,
             assigned_role=assigned_role,
             invite_status=invite_status,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1078,6 +1082,7 @@ def log_multi_record_access(
     record_count: Union[int, str] = "",
     customer_id_list: Union[List[str], str] = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     # Action type
@@ -1154,6 +1159,7 @@ def log_multi_record_access(
             data_sensitivity_level=data_sensitivity_level,
             record_count=record_count_int,
             customer_id_list=customer_id_list,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1178,6 +1184,7 @@ def log_single_record_access(
     customer_id: str = "",
     fields_accessed: Union[List[str], str] = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     # Action type
@@ -1236,6 +1243,7 @@ def log_single_record_access(
             # Event-specific fields
             customer_id=customer_id,
             fields_accessed=fields_accessed,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1264,6 +1272,7 @@ def log_mfa_status_change(
     target_object: str = "",
     mfa_id: str = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     # MFA change type
@@ -1320,6 +1329,7 @@ def log_mfa_status_change(
             # Event-specific fields
             target_object=target_object,
             mfa_id=mfa_id,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1343,6 +1353,7 @@ def log_password_change_reset(
     # Event-specific required fields
     target_object: str = "",
     # Optional fields
+    detail: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     # Password action type
@@ -1390,6 +1401,7 @@ def log_password_change_reset(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1412,22 +1424,23 @@ def log_api_key_lifecycle(
     service_account_id: str = "",
     # Event-specific required fields
     target_object: str = "",
+    detail: str = "",
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    # Lifecycle action
-    lifecycle_action: str = "created"  # "created", "revoked", "permissions_modified"
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs API key lifecycle events.
     
     Required log_specifics fields:
     - target_object: The API Client ID or key that was affected
+    - detail: The lifecycle action (e.g., "created", "revoked", "permissions_modified")
     """
     try:
         # Validate event-specific required fields
         event_specific_required = {
             "target_object": target_object,
+            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -1439,13 +1452,13 @@ def log_api_key_lifecycle(
                 "message": f"Required log_specifics fields missing for API key lifecycle: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on lifecycle action
+        # Determine event type based on detail action
         event_type_map = {
             "created": EventType.API_KEY_CREATED,
             "revoked": EventType.API_KEY_REVOKED,
             "permissions_modified": EventType.API_KEY_PERMISSIONS_MODIFIED,
         }
-        event_type = event_type_map.get(lifecycle_action, EventType.API_KEY_CREATED)
+        event_type = event_type_map.get(detail, EventType.API_KEY_CREATED)
         
         # Create the log event
         event = _create_base_log_event(
@@ -1465,6 +1478,7 @@ def log_api_key_lifecycle(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":
@@ -1487,22 +1501,23 @@ def log_auth_mechanism_modification(
     service_account_id: str = "",
     # Event-specific required fields
     target_object: str = "",
+    detail: str = "",
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    # Modification type
-    modification_type: str = "sso_config_created"  # "sso_config_created", "sso_config_modified", "sso_config_deleted", "local_auth_enabled", "local_auth_disabled"
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs authentication mechanism modification events.
     
     Required log_specifics fields:
     - target_object: The configuration object that was changed (e.g., "sso_assertion_url", "local_authentication")
+    - detail: The modification type (e.g., "sso_config_created", "sso_config_modified", "sso_config_deleted", "local_auth_enabled", "local_auth_disabled")
     """
     try:
         # Validate event-specific required fields
         event_specific_required = {
             "target_object": target_object,
+            "detail": detail,
         }
         
         missing_specific = [field for field, value in event_specific_required.items() 
@@ -1514,7 +1529,7 @@ def log_auth_mechanism_modification(
                 "message": f"Required log_specifics fields missing for auth mechanism modification: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on modification type
+        # Determine event type based on detail modification type
         event_type_map = {
             "sso_config_created": EventType.SSO_CONFIG_CREATED,
             "sso_config_modified": EventType.SSO_CONFIG_MODIFIED,
@@ -1522,7 +1537,7 @@ def log_auth_mechanism_modification(
             "local_auth_enabled": EventType.LOCAL_AUTH_CONFIG_ENABLED,
             "local_auth_disabled": EventType.LOCAL_AUTH_CONFIG_DISABLED,
         }
-        event_type = event_type_map.get(modification_type, EventType.SSO_CONFIG_CREATED)
+        event_type = event_type_map.get(detail, EventType.SSO_CONFIG_CREATED)
         
         # Create the log event
         event = _create_base_log_event(
@@ -1542,6 +1557,7 @@ def log_auth_mechanism_modification(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
+            detail=detail,
         )
         
         if "status" in event and event["status"] == "failure":

@@ -124,6 +124,18 @@ class Detail:
     MAINTENANCE = "detail.system.maintenance"
     INVALID_REQUEST = "detail.client.invalid_request"
     NOT_APPLICABLE = "detail.not_applicable"
+    
+    # API Key Lifecycle Actions
+    API_KEY_CREATED = "created"
+    API_KEY_REVOKED = "revoked"
+    API_KEY_PERMISSIONS_MODIFIED = "permissions_modified"
+    
+    # Auth Mechanism Modification Types
+    SSO_CONFIG_CREATED = "sso_config_created"
+    SSO_CONFIG_MODIFIED = "sso_config_modified"
+    SSO_CONFIG_DELETED = "sso_config_deleted"
+    LOCAL_AUTH_ENABLED = "local_auth_enabled"
+    LOCAL_AUTH_DISABLED = "local_auth_disabled"
 
 # MFA types
 class MfaType:
