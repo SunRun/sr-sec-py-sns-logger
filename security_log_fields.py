@@ -126,16 +126,16 @@ class Detail:
     NOT_APPLICABLE = "detail.not_applicable"
     
     # API Key Lifecycle Actions
-    API_KEY_CREATED = "created"
-    API_KEY_REVOKED = "revoked"
-    API_KEY_PERMISSIONS_MODIFIED = "permissions_modified"
+    API_KEY_CREATED = "detail.api_key.created"
+    API_KEY_REVOKED = "detail.api_key.revoked"
+    API_KEY_PERMISSIONS_MODIFIED = "detail.api_key.permissions_modified"
     
     # Auth Mechanism Modification Types
-    SSO_CONFIG_CREATED = "sso_config_created"
-    SSO_CONFIG_MODIFIED = "sso_config_modified"
-    SSO_CONFIG_DELETED = "sso_config_deleted"
-    LOCAL_AUTH_ENABLED = "local_auth_enabled"
-    LOCAL_AUTH_DISABLED = "local_auth_disabled"
+    SSO_CONFIG_CREATED = "detail.auth.sso_config_created"
+    SSO_CONFIG_MODIFIED = "detail.auth.sso_config_modified"
+    SSO_CONFIG_DELETED = "detail.auth.sso_config_deleted"
+    LOCAL_AUTH_ENABLED = "detail.auth.local_auth_enabled"
+    LOCAL_AUTH_DISABLED = "detail.auth.local_auth_disabled"
 
 # MFA types
 class MfaType:

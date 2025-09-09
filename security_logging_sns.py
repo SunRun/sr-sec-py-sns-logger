@@ -1452,11 +1452,14 @@ def log_api_key_lifecycle(
                 "message": f"Required log_specifics fields missing for API key lifecycle: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on detail action
+        # Determine event type based on detail action (supports both simple and dot-notation values)
         event_type_map = {
             "created": EventType.API_KEY_CREATED,
             "revoked": EventType.API_KEY_REVOKED,
             "permissions_modified": EventType.API_KEY_PERMISSIONS_MODIFIED,
+            "detail.api_key.created": EventType.API_KEY_CREATED,
+            "detail.api_key.revoked": EventType.API_KEY_REVOKED,
+            "detail.api_key.permissions_modified": EventType.API_KEY_PERMISSIONS_MODIFIED,
         }
         event_type = event_type_map.get(detail, EventType.API_KEY_CREATED)
         
@@ -1529,13 +1532,18 @@ def log_auth_mechanism_modification(
                 "message": f"Required log_specifics fields missing for auth mechanism modification: {', '.join(missing_specific)}"
             }
         
-        # Determine event type based on detail modification type
+        # Determine event type based on detail modification type (supports both simple and dot-notation values)
         event_type_map = {
             "sso_config_created": EventType.SSO_CONFIG_CREATED,
             "sso_config_modified": EventType.SSO_CONFIG_MODIFIED,
             "sso_config_deleted": EventType.SSO_CONFIG_DELETED,
             "local_auth_enabled": EventType.LOCAL_AUTH_CONFIG_ENABLED,
             "local_auth_disabled": EventType.LOCAL_AUTH_CONFIG_DISABLED,
+            "detail.auth.sso_config_created": EventType.SSO_CONFIG_CREATED,
+            "detail.auth.sso_config_modified": EventType.SSO_CONFIG_MODIFIED,
+            "detail.auth.sso_config_deleted": EventType.SSO_CONFIG_DELETED,
+            "detail.auth.local_auth_enabled": EventType.LOCAL_AUTH_CONFIG_ENABLED,
+            "detail.auth.local_auth_disabled": EventType.LOCAL_AUTH_CONFIG_DISABLED,
         }
         event_type = event_type_map.get(detail, EventType.SSO_CONFIG_CREATED)
         
