@@ -316,9 +316,10 @@ class TestUserLoginFunction(unittest.TestCase):
         
         self.assertEqual(result["status"], "success")
         
-        # Parse the JSON message to verify detail field is not present
+        # Parse the JSON message to verify detail field is present but empty
         message = json.loads(result["message_content"])
-        self.assertNotIn("detail", message)
+        self.assertIn("detail", message)
+        self.assertEqual(message["detail"], "")
 
 
 class TestAPIRequestFunction(unittest.TestCase):

@@ -106,6 +106,11 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             UserRole.PARTNER_ADMIN, UserRole.CUSTOMER_USER
         ],
         "invite_status": [InviteStatus.SENT, InviteStatus.ACCEPTED, InviteStatus.REVOKED, InviteStatus.EXPIRED],
+        "mfa_type": [
+            MfaType.SMS, MfaType.TOTP, MfaType.PUSH, MfaType.EMAIL,
+            MfaType.OKTA_VERIFY, MfaType.AUTHENTICATOR_APP, MfaType.HARDWARE_TOKEN,
+            MfaType.BIOMETRIC, MfaType.BACKUP_CODES
+        ],
         "detail": [
             # Authentication failures
             Detail.INVALID_CREDENTIALS, Detail.ACCOUNT_LOCKED, Detail.IP_RESTRICTED,
@@ -453,6 +458,27 @@ def log_mfa_challenge(
                 "status": "failure", 
                 "message": f"Required log_specifics fields missing for MFA challenge: {', '.join(missing_specific)}"
             }
+        
+        # Validate standardized values for event-specific fields
+        standardized_fields = ["user_role", "mfa_type"]
+        for field_name in standardized_fields:
+            field_value = locals()[field_name]
+            if field_value:  # Only validate if value is provided
+                validation_result = _validate_standardized_field(field_name, field_value)
+                if not validation_result["valid"]:
+                    return {
+                        "status": "failure", 
+                        "message": f"Invalid {field_name} value. {validation_result['message']}"
+                    }
+        
+        # Validate detail field if provided (conditional validation since it's optional)
+        if detail:
+            detail_validation = _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
+            if not detail_validation["valid"]:
+                return {
+                    "status": "failure", 
+                    "message": f"Invalid detail value. {detail_validation['message']}"
+                }
         
         # Determine event type and status based on success flag
         event_type = EventType.MFA_CHALLENGE_SUCCESS if challenge_successful else EventType.MFA_CHALLENGE_FAILURE

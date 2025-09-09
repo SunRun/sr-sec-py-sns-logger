@@ -161,7 +161,7 @@ def main():
         object_changed="Role",
         previous_value="developer",
         new_value="senior_developer",
-        change_type="granted"
+        detail=Detail.ADMIN_INITIATED
     )
     print(f"Result: {result}\n")
     
@@ -199,7 +199,7 @@ def main():
         # Event-specific fields
         target_object="user789@company.com",
         mfa_id="mfa-device-456",
-        change_type="enabled"
+        mfa_change_type="enabled"
     )
     print(f"Result: {result}\n")
     

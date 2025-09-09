@@ -128,9 +128,14 @@ class Detail:
 # MFA types
 class MfaType:
     SMS = "sms"
-    OKTA_VERIFY = "okta verify"
+    TOTP = "totp"
+    PUSH = "push"
+    EMAIL = "email"
+    OKTA_VERIFY = "okta_verify"
     AUTHENTICATOR_APP = "authenticator_app"
     HARDWARE_TOKEN = "hardware_token"
+    BIOMETRIC = "biometric"
+    BACKUP_CODES = "backup_codes"
 
 # HTTP methods using standardized format
 class HttpMethod:
