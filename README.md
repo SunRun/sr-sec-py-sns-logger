@@ -381,6 +381,8 @@ Log user authentication attempts (successful or failed).
 
 **Required Parameters:**
 - All base_log parameters
+- `event_type` (str): "login_success" or "login_failure" from `EventType` constants
+- `status` (str): "status.general.success" or "status.general.failure" from `Status` constants
 - `user_agent` (str): Browser/device info
 - `user_role` (str): User role from `UserRole` constants
 
