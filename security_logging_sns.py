@@ -4,9 +4,9 @@ import os
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Union
 from security_log_fields import (
-    Status, ActorType, LogCategory, EventType, ActionType, AuthProtocol, Detail, MfaType,
+    Status, ActorType, LogCategory, EventType, AuthProtocol, Detail, MfaType,
     HttpMethod, CloudEnvType, CloudServiceApiType, DataSensitivityLevel,
-    EndpointSensitivity, InviteStatus, UserRole, VALID_EVENT_TYPES, VALID_ACTION_TYPES
+    EndpointSensitivity, InviteStatus, UserRole, VALID_EVENT_TYPES
 )
 from sns_publisher import SNSPublisher
 
@@ -51,7 +51,6 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
     """Get list of valid standardized values for a given field."""
     valid_values = {
         "event_type": VALID_EVENT_TYPES,
-        "action_type": VALID_ACTION_TYPES,
         "status": [Status.SUCCESS, Status.FAILURE],
         "actor_type": [
             ActorType.HUMAN_INTERNAL, ActorType.HUMAN_PARTNER, ActorType.HUMAN_CUSTOMER,
@@ -101,7 +100,19 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             # API Key and Auth Mechanism Details
             Detail.API_KEY_CREATED, Detail.API_KEY_REVOKED, Detail.API_KEY_PERMISSIONS_MODIFIED,
             Detail.SSO_CONFIG_CREATED, Detail.SSO_CONFIG_MODIFIED, Detail.SSO_CONFIG_DELETED,
-            Detail.LOCAL_AUTH_ENABLED, Detail.LOCAL_AUTH_DISABLED
+            Detail.LOCAL_AUTH_ENABLED, Detail.LOCAL_AUTH_DISABLED,
+            # User Status Actions
+            Detail.USER_DISABLED, Detail.USER_ENABLED, Detail.USER_DELETED, Detail.USER_LOCKED, Detail.USER_UNLOCKED,
+            # Impersonation Actions
+            Detail.IMPERSONATION_START, Detail.IMPERSONATION_STOP,
+            # Customer Data Actions
+            Detail.VIEW_LIST, Detail.MODIFY_CUSTOMER_DATA, Detail.EXPORT_REPORT, Detail.VIEW_RECORD, Detail.EDIT_RECORD,
+            # MFA Actions
+            Detail.MFA_DISABLED, Detail.MFA_ENABLED, Detail.NEW_MFA_DEVICE,
+            # Password Actions
+            Detail.PASSWORD_CHANGE, Detail.PASSWORD_RESET,
+            # Auth Mechanism Actions
+            Detail.NEW_SSO_PROVIDER, Detail.ENABLE_LOCAL_AUTHN, Detail.DISABLE_SSO
         ]
     }
     return valid_values.get(field_name, [])
@@ -607,11 +618,10 @@ def log_user_status_change(
     service_account_id: str = "",
     # Event-specific required fields
     target_user_identifier: str = "",
-    action_type: str = "",  # e.g., "user_disabled", "user_deleted"
+    detail: str = "",  # e.g., "detail.action.user_disabled", "detail.action.user_deleted"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""  # e.g., "too_many_failed_logins", "admin_action"
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs User Status Events (Disabled/Blocked, Enabled/Unblocked, Deleted).
@@ -619,17 +629,14 @@ def log_user_status_change(
     Required fields:
     - event_type: "user_status_change"
     - target_user_identifier: The user whose status was changed
-    - action_type: The specific action (e.g., "user_disabled", "user_enabled", "user_deleted")
-    
-    Optional fields:
-    - detail: The reason for the status change (e.g., "too_many_failed_logins", "admin_action")
+    - detail: The specific action (e.g., "detail.action.user_disabled", "detail.action.user_enabled")
     """
     try:
         # Validate required fields
         required_fields = {
             "event_type": event_type,
             "target_user_identifier": target_user_identifier,
-            "action_type": action_type,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -644,14 +651,8 @@ def log_user_status_change(
         # Validate standardized values
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("action_type", action_type),
+            _validate_standardized_field("detail", detail),
         ]
-        
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
         
         for validation in standardized_validations:
             if not validation["valid"]:
@@ -675,7 +676,6 @@ def log_user_status_change(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
-            action_type=action_type,
             detail=detail,
         )
         
@@ -697,11 +697,10 @@ def log_impersonation_event(
     service_account_id: str = "",
     # Event-specific required fields
     target_user_identifier: str = "",  # The user being impersonated
-    action_type: str = "",  # "impersonation_start" or "impersonation_stop"
+    detail: str = "",  # "detail.action.impersonation_start" or "detail.action.impersonation_stop"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs Impersonation Events (Start/Stop).
@@ -711,14 +710,14 @@ def log_impersonation_event(
     - actor_identifier: The admin/support user performing the impersonation
     - session_id: The admin's session
     - target_user_identifier: The user being impersonated
-    - action_type: "impersonation_start" or "impersonation_stop"
+    - detail: "detail.action.impersonation_start" or "detail.action.impersonation_stop"
     """
     try:
         # Validate required fields
         required_fields = {
             "event_type": event_type,
             "target_user_identifier": target_user_identifier,
-            "action_type": action_type,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -733,10 +732,9 @@ def log_impersonation_event(
         # Validate standardized values
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("action_type", action_type),
         ]
         
-        # Validate detail field only if provided
+        # Validate detail field (required for this function)
         if detail and detail.strip():
             standardized_validations.append(
                 _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
@@ -764,7 +762,6 @@ def log_impersonation_event(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
-            action_type=action_type,
             detail=detail,
         )
         
@@ -989,26 +986,25 @@ def log_multi_record_access(
     cloud_env_name: str = "",
     service_account_id: str = "",
     # Event-specific required fields
-    action_type: str = "",  # e.g., "view_list", "modify_customer_data", "export_report"
     endpoint_path: str = "",  # e.g., "/api/v1/customers"
     data_sensitivity_level: str = "",  # e.g., "Confidential-PII"
     record_count: int = 0,
     customer_id_list: List[str] = None,
+    detail: str = "",  # e.g., "detail.action.view_list", "detail.action.export_report"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs Multi-Record Customer Data Actions (View/Modify List, Export/Download Report).
     
     Required fields:
     - event_type: "multi_record_access"
-    - action_type: The specific action (e.g., "view_list", "modify_customer_data", "export_report")
     - endpoint_path: The API endpoint used for the action
     - data_sensitivity_level: The sensitivity of the data being accessed
     - record_count: The number of records affected/accessed
     - customer_id_list: A list of the unique customer IDs accessed
+    - detail: The specific action (e.g., "detail.action.view_list", "detail.action.export_report")
     """
     try:
         # Handle default for customer_id_list
@@ -1018,9 +1014,9 @@ def log_multi_record_access(
         # Validate required fields
         required_fields = {
             "event_type": event_type,
-            "action_type": action_type,
             "endpoint_path": endpoint_path,
             "data_sensitivity_level": data_sensitivity_level,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -1042,14 +1038,8 @@ def log_multi_record_access(
         # Validate standardized values
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("action_type", action_type),
+            _validate_standardized_field("detail", detail),
         ]
-        
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
         
         for validation in standardized_validations:
             if not validation["valid"]:
@@ -1072,7 +1062,6 @@ def log_multi_record_access(
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
-            action_type=action_type,
             endpoint_path=endpoint_path,
             data_sensitivity_level=data_sensitivity_level,
             record_count=record_count,
@@ -1098,12 +1087,11 @@ def log_single_record_access(
     service_account_id: str = "",
     # Event-specific required fields
     customer_id: str = "",  # Whose data was accessed
-    action_type: str = "",  # e.g., "view_record", "edit_record"
     fields_accessed: List[str] = None,  # e.g., ["email", "phone"]
+    detail: str = "",  # e.g., "detail.action.view_record", "detail.action.edit_record"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs Single Record Customer Data Actions (View/Modify Personal Data).
@@ -1111,8 +1099,8 @@ def log_single_record_access(
     Required fields:
     - event_type: "single_record_access"
     - customer_id: The unique ID of the customer whose record was accessed
-    - action_type: The specific action (e.g., "view_record", "edit_record")
     - fields_accessed: A list of the specific fields that were viewed or modified
+    - detail: The specific action (e.g., "detail.action.view_record", "detail.action.edit_record")
     """
     try:
         # Handle default for fields_accessed
@@ -1123,7 +1111,7 @@ def log_single_record_access(
         required_fields = {
             "event_type": event_type,
             "customer_id": customer_id,
-            "action_type": action_type,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -1141,10 +1129,9 @@ def log_single_record_access(
         # Validate standardized values
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("action_type", action_type),
         ]
         
-        # Validate detail field only if provided
+        # Validate detail field (required for this function)
         if detail and detail.strip():
             standardized_validations.append(
                 _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
@@ -1172,7 +1159,6 @@ def log_single_record_access(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             customer_id=customer_id,
-            action_type=action_type,
             fields_accessed=fields_accessed,
             detail=detail,
         )
@@ -1201,11 +1187,10 @@ def log_mfa_status_change(
     target_object: str = "",  # e.g., User ID for MFA
     status: str = "",  # Success/Failure
     mfa_id: str = "",  # Associated unique ID of MFA option that was impacted
-    action_type: str = "",  # e.g., "mfa_disabled", "mfa_enabled", "new_mfa_device"
+    detail: str = "",  # e.g., "detail.action.mfa_disabled", "detail.action.mfa_enabled", "detail.action.new_mfa_device"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs MFA Status Change events.
@@ -1215,7 +1200,7 @@ def log_mfa_status_change(
     - target_object: The User ID or object whose MFA status was changed
     - status: Success/Failure status
     - mfa_id: The unique ID of the MFA device that was impacted
-    - action_type: The specific action (e.g., "mfa_disabled", "mfa_enabled", "new_mfa_device")
+    - detail: The specific action (e.g., "detail.action.mfa_disabled", "detail.action.mfa_enabled", "detail.action.new_mfa_device")
     """
     try:
         # Validate required fields
@@ -1224,7 +1209,7 @@ def log_mfa_status_change(
             "target_object": target_object,
             "status": status,
             "mfa_id": mfa_id,
-            "action_type": action_type,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -1240,10 +1225,9 @@ def log_mfa_status_change(
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
             _validate_standardized_field("status", status),
-            _validate_standardized_field("action_type", action_type),
         ]
         
-        # Validate detail field only if provided
+        # Validate detail field (required for this function)
         if detail and detail.strip():
             standardized_validations.append(
                 _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
@@ -1272,7 +1256,6 @@ def log_mfa_status_change(
             # Event-specific fields
             target_object=target_object,
             mfa_id=mfa_id,
-            action_type=action_type,
             detail=detail,
         )
         
@@ -1295,11 +1278,10 @@ def log_password_change_reset(
     # Event-specific required fields
     target_object: str = "",  # e.g., User ID
     status: str = "",  # Success/Failure
-    action_type: str = "",  # e.g., "password_change", "password_reset"
+    detail: str = "",  # e.g., "detail.action.password_change", "detail.action.password_reset"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs Password Change/Reset events.
@@ -1308,7 +1290,7 @@ def log_password_change_reset(
     - event_type: "password_change_reset"
     - target_object: The User ID whose password was changed or reset
     - status: Success/Failure status
-    - action_type: The specific action (e.g., "password_change", "password_reset")
+    - detail: The specific action (e.g., "detail.action.password_change", "detail.action.password_reset")
     """
     try:
         # Validate required fields
@@ -1316,7 +1298,7 @@ def log_password_change_reset(
             "event_type": event_type,
             "target_object": target_object,
             "status": status,
-            "action_type": action_type,
+            "detail": detail,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -1332,10 +1314,9 @@ def log_password_change_reset(
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
             _validate_standardized_field("status", status),
-            _validate_standardized_field("action_type", action_type),
         ]
         
-        # Validate detail field only if provided
+        # Validate detail field (required for this function)
         if detail and detail.strip():
             standardized_validations.append(
                 _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
@@ -1363,7 +1344,6 @@ def log_password_change_reset(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
-            action_type=action_type,
             detail=detail,
         )
         
@@ -1386,11 +1366,10 @@ def log_api_key_lifecycle(
     # Event-specific required fields
     target_object: str = "",  # e.g., API Client ID
     status: str = "",  # Success/Failure
-    action_type: str = "",  # e.g., "api_key_created", "api_key_revoked", "api_key_permissions_modified"
+    detail: str = "",  # e.g., "detail.action.api_key_created", "detail.action.api_key_revoked", "detail.action.api_key_permissions_modified"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs API Key Lifecycle events (Created, Revoked, Permissions Modified).
@@ -1399,7 +1378,7 @@ def log_api_key_lifecycle(
     - event_type: "api_key_lifecycle"
     - target_object: The API Client ID or key that was affected
     - status: Success/Failure status
-    - action_type: The specific action (e.g., "api_key_created", "api_key_revoked")
+    - detail: The specific action (e.g., "detail.action.api_key_created", "detail.action.api_key_revoked")
     """
     try:
         # Validate required fields
@@ -1407,8 +1386,7 @@ def log_api_key_lifecycle(
             "event_type": event_type,
             "target_object": target_object,
             "status": status,
-            "action_type": action_type,
-        }
+            }
         
         missing_fields = [field for field, value in required_fields.items() 
                          if not value or value.strip() == ""]
@@ -1423,7 +1401,6 @@ def log_api_key_lifecycle(
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
             _validate_standardized_field("status", status),
-            _validate_standardized_field("action_type", action_type),
         ]
         
         # Validate detail field only if provided
@@ -1454,7 +1431,6 @@ def log_api_key_lifecycle(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
-            action_type=action_type,
             detail=detail,
         )
         
@@ -1477,11 +1453,10 @@ def log_auth_mechanism_modification(
     # Event-specific required fields
     target_object: str = "",  # e.g., sso_assertion_url, sso_certificate, local_authentication
     status: str = "",  # Success/Failure
-    action_type: str = "",  # e.g., "new_sso_provider", "enable_local_authn", "disable_sso"
+    detail: str = "",  # e.g., "detail.action.new_sso_provider", "detail.action.enable_local_authn", "detail.action.disable_sso"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    detail: str = ""
+    cloud_service_api_type: str = ""
 ) -> Dict[str, str]:
     """
     Logs Authentication Mechanism Modification events (disable SSO, allow 2nd authN in parallel).
@@ -1490,7 +1465,7 @@ def log_auth_mechanism_modification(
     - event_type: "auth_mechanism_modification"
     - target_object: The configuration object that was changed
     - status: Success/Failure status
-    - action_type: The specific action (e.g., "new_sso_provider", "enable_local_authn")
+    - detail: The specific action (e.g., "detail.action.new_sso_provider", "detail.action.enable_local_authn")
     """
     try:
         # Validate required fields
@@ -1498,8 +1473,7 @@ def log_auth_mechanism_modification(
             "event_type": event_type,
             "target_object": target_object,
             "status": status,
-            "action_type": action_type,
-        }
+            }
         
         missing_fields = [field for field, value in required_fields.items() 
                          if not value or value.strip() == ""]
@@ -1514,7 +1488,6 @@ def log_auth_mechanism_modification(
         standardized_validations = [
             _validate_standardized_field("event_type", event_type),
             _validate_standardized_field("status", status),
-            _validate_standardized_field("action_type", action_type),
         ]
         
         # Validate detail field only if provided
@@ -1545,7 +1518,6 @@ def log_auth_mechanism_modification(
             cloud_service_api_type=cloud_service_api_type,
             # Event-specific fields
             target_object=target_object,
-            action_type=action_type,
             detail=detail,
         )
         

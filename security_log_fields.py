@@ -50,44 +50,6 @@ class EventType:
     API_KEY_LIFECYCLE = "api_key_lifecycle"
     AUTH_MECHANISM_MODIFICATION = "auth_mechanism_modification"
 
-# Action types for different event categories
-class ActionType:
-    # User Status Actions
-    USER_DISABLED = "user_disabled"
-    USER_ENABLED = "user_enabled" 
-    USER_DELETED = "user_deleted"
-    USER_LOCKED = "user_locked"
-    USER_UNLOCKED = "user_unlocked"
-    
-    # Impersonation Actions
-    IMPERSONATION_START = "impersonation_start"
-    IMPERSONATION_STOP = "impersonation_stop"
-    
-    # Customer Data Actions
-    VIEW_LIST = "view_list"
-    MODIFY_CUSTOMER_DATA = "modify_customer_data"
-    EXPORT_REPORT = "export_report"
-    VIEW_RECORD = "view_record"
-    EDIT_RECORD = "edit_record"
-    
-    # MFA Actions
-    MFA_DISABLED = "mfa_disabled"
-    MFA_ENABLED = "mfa_enabled"
-    NEW_MFA_DEVICE = "new_mfa_device"
-    
-    # Password Actions
-    PASSWORD_CHANGE = "password_change"
-    PASSWORD_RESET = "password_reset"
-    
-    # API Key Actions
-    API_KEY_CREATED = "api_key_created"
-    API_KEY_REVOKED = "api_key_revoked"
-    API_KEY_PERMISSIONS_MODIFIED = "api_key_permissions_modified"
-    
-    # Auth Mechanism Actions
-    NEW_SSO_PROVIDER = "new_sso_provider"
-    ENABLE_LOCAL_AUTHN = "enable_local_authn"
-    DISABLE_SSO = "disable_sso"
 
 # Authentication protocols using standardized format
 class AuthProtocol:
@@ -144,6 +106,38 @@ class Detail:
     SSO_CONFIG_DELETED = "detail.auth.sso_config_deleted"
     LOCAL_AUTH_ENABLED = "detail.auth.local_auth_enabled"
     LOCAL_AUTH_DISABLED = "detail.auth.local_auth_disabled"
+    
+    # User Status Actions
+    USER_DISABLED = "detail.action.user_disabled"
+    USER_ENABLED = "detail.action.user_enabled"
+    USER_DELETED = "detail.action.user_deleted"
+    USER_LOCKED = "detail.action.user_locked"
+    USER_UNLOCKED = "detail.action.user_unlocked"
+    
+    # Impersonation Actions
+    IMPERSONATION_START = "detail.action.impersonation_start"
+    IMPERSONATION_STOP = "detail.action.impersonation_stop"
+    
+    # Customer Data Actions
+    VIEW_LIST = "detail.action.view_list"
+    MODIFY_CUSTOMER_DATA = "detail.action.modify_customer_data"
+    EXPORT_REPORT = "detail.action.export_report"
+    VIEW_RECORD = "detail.action.view_record"
+    EDIT_RECORD = "detail.action.edit_record"
+    
+    # MFA Actions
+    MFA_DISABLED = "detail.action.mfa_disabled"
+    MFA_ENABLED = "detail.action.mfa_enabled"
+    NEW_MFA_DEVICE = "detail.action.new_mfa_device"
+    
+    # Password Actions
+    PASSWORD_CHANGE = "detail.action.password_change"
+    PASSWORD_RESET = "detail.action.password_reset"
+    
+    # Auth Mechanism Actions
+    NEW_SSO_PROVIDER = "detail.action.new_sso_provider"
+    ENABLE_LOCAL_AUTHN = "detail.action.enable_local_authn"
+    DISABLE_SSO = "detail.action.disable_sso"
 
 # MFA types
 class MfaType:
@@ -237,30 +231,4 @@ VALID_EVENT_TYPES = [
     EventType.PASSWORD_CHANGE_RESET,
     EventType.API_KEY_LIFECYCLE,
     EventType.AUTH_MECHANISM_MODIFICATION
-]
-
-VALID_ACTION_TYPES = [
-    ActionType.USER_DISABLED,
-    ActionType.USER_ENABLED,
-    ActionType.USER_DELETED,
-    ActionType.USER_LOCKED,
-    ActionType.USER_UNLOCKED,
-    ActionType.IMPERSONATION_START,
-    ActionType.IMPERSONATION_STOP,
-    ActionType.VIEW_LIST,
-    ActionType.MODIFY_CUSTOMER_DATA,
-    ActionType.EXPORT_REPORT,
-    ActionType.VIEW_RECORD,
-    ActionType.EDIT_RECORD,
-    ActionType.MFA_DISABLED,
-    ActionType.MFA_ENABLED,
-    ActionType.NEW_MFA_DEVICE,
-    ActionType.PASSWORD_CHANGE,
-    ActionType.PASSWORD_RESET,
-    ActionType.API_KEY_CREATED,
-    ActionType.API_KEY_REVOKED,
-    ActionType.API_KEY_PERMISSIONS_MODIFIED,
-    ActionType.NEW_SSO_PROVIDER,
-    ActionType.ENABLE_LOCAL_AUTHN,
-    ActionType.DISABLE_SSO
 ]

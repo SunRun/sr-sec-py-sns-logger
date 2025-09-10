@@ -41,6 +41,7 @@ security_logging_sns.init_security_logging(
 
 # Log a user login
 result = security_logging_sns.log_user_login(
+    event_type=EventType.LOGIN_SUCCESS,
     actor_identifier="user@company.com",
     actor_type=ActorType.HUMAN_INTERNAL,
     session_id="session-123",
@@ -51,8 +52,8 @@ result = security_logging_sns.log_user_login(
     service_account_id="sa-logger@project.iam.gserviceaccount.com",
     user_agent="Mozilla/5.0",
     user_role=UserRole.ADMIN,
-    detail=Detail.USER_INITIATED,
-    login_successful=True
+    status=Status.SUCCESS,
+    detail=Detail.USER_INITIATED
 )
 
 print(result)  # {'status': 'success', 'message_content': '...'}
@@ -91,6 +92,7 @@ def authenticate_user(username, password, request_info):
     if username == "admin@company.com" and password == "correct":
         # Log successful authentication
         result = security_logging_sns.log_user_login(
+            event_type=EventType.LOGIN_SUCCESS,
             actor_identifier=username,
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id=request_info["session_id"],
@@ -102,8 +104,8 @@ def authenticate_user(username, password, request_info):
             source_ip_address=request_info["client_ip"],
             user_agent=request_info["user_agent"],
             user_role=UserRole.ADMIN,
-            detail=Detail.USER_INITIATED,
-            login_successful=True
+            status=Status.SUCCESS,
+            detail=Detail.USER_INITIATED
         )
         
         if result["status"] == "failure":
@@ -114,6 +116,7 @@ def authenticate_user(username, password, request_info):
     else:
         # Log failed authentication
         result = security_logging_sns.log_user_login(
+            event_type=EventType.LOGIN_FAILURE,
             actor_identifier=username,
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id=request_info["session_id"],
@@ -125,8 +128,8 @@ def authenticate_user(username, password, request_info):
             source_ip_address=request_info["client_ip"],
             user_agent=request_info["user_agent"],
             user_role=UserRole.ADMIN,  # Attempted role
-            detail=Detail.INVALID_CREDENTIALS,
-            login_successful=False
+            status=Status.FAILURE,
+            detail=Detail.INVALID_CREDENTIALS
         )
         
         if result["status"] == "failure":
@@ -346,6 +349,323 @@ Your application's IAM role or user needs the following permission:
     ]
 }
 ```
+
+## 📝 Complete Function Examples
+
+Below are working examples for all 14 available functions with their exact parameters and expected outputs.
+
+### Authentication & Session Functions
+
+#### 1. log_user_login - User Login Success
+```python
+result = security_logging_sns.log_user_login(
+    event_type=EventType.LOGIN_SUCCESS,
+    actor_identifier="alice@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-xyz789",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="user-management-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    user_role=UserRole.ADMIN,
+    status=Status.SUCCESS,
+    source_ip_address="192.168.1.100",
+    detail=Detail.USER_INITIATED
+)
+```
+**Generates:** `login_success` event with `detail: "detail.trigger.user_initiated"`
+
+#### 2. log_mfa_challenge - MFA Challenge
+```python
+result = security_logging_sns.log_mfa_challenge(
+    event_type=EventType.MFA_CHALLENGE,
+    actor_identifier="bob@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-mfa-456",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="auth-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-auth@project.iam.gserviceaccount.com",
+    user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 15_0)",
+    user_role=UserRole.SALES_REP,
+    status=Status.SUCCESS,
+    mfa_type=MfaType.SMS,
+    source_ip_address="203.0.113.25",
+    detail=Detail.USER_INITIATED
+)
+```
+**Generates:** `mfa_challenge` event with `detail: "detail.trigger.user_initiated"`
+
+#### 3. log_user_logout - User Logout
+```python
+result = security_logging_sns.log_user_logout(
+    event_type=EventType.USER_LOGOUT,
+    actor_identifier="charlie@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-logout-789",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="session-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-session@project.iam.gserviceaccount.com",
+    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    user_role=UserRole.CUSTOMER_SUPPORT,
+    status=Status.SUCCESS,
+    source_ip_address="10.0.1.45",
+    detail=Detail.SESSION_TIMEOUT
+)
+```
+**Generates:** `user_logout` event with `detail: "detail.trigger.session_timeout"`
+
+### Authorization & Access Functions
+
+#### 4. log_permission_role_change - Permission/Role Change
+```python
+result = security_logging_sns.log_permission_role_change(
+    event_type=EventType.PERMISSION_CHANGE,
+    actor_identifier="admin@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-admin-perm",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="user-management-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+    target_user_identifier="newuser@company.com",
+    object_changed="Role",
+    previous_value="Sales Rep",
+    new_value="Admin",
+    source_ip_address="10.0.1.25"
+)
+```
+**Generates:** `permission_change` event
+
+#### 5. log_user_status_change - User Status Change
+```python
+result = security_logging_sns.log_user_status_change(
+    event_type=EventType.USER_STATUS_CHANGE,
+    actor_identifier="admin@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-admin-status",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="user-management-api",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+    target_user_identifier="suspended@company.com",
+    detail=Detail.USER_DISABLED,
+    source_ip_address="10.0.1.25"
+)
+```
+**Generates:** `user_status_change` event with `detail: "detail.action.user_disabled"`
+
+#### 6. log_impersonation_event - User Impersonation
+```python
+result = security_logging_sns.log_impersonation_event(
+    event_type=EventType.IMPERSONATION_EVENT,
+    actor_identifier="support@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-support-impersonate",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="support-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-support@project.iam.gserviceaccount.com",
+    target_user_identifier="customer@company.com",
+    detail=Detail.IMPERSONATION_START,
+    source_ip_address="10.0.1.30"
+)
+```
+**Generates:** `impersonation_event` event with `detail: "detail.action.impersonation_start"`
+
+#### 7. log_user_invite_event - User Invitation
+```python
+result = security_logging_sns.log_user_invite_event(
+    event_type=EventType.USER_INVITE_EVENT,
+    actor_identifier="hr@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-hr-invite",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="invite-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-invite@project.iam.gserviceaccount.com",
+    target_user_email="newhire@company.com",
+    assigned_role=UserRole.SALES_REP,
+    invite_status=InviteStatus.SENT,
+    source_ip_address="10.0.1.35",
+    detail=Detail.ADMIN_INITIATED
+)
+```
+**Generates:** `user_invite_event` event with `detail: "detail.trigger.admin_initiated"`
+
+### API Endpoint Access Functions
+
+#### 8. log_api_request - API Request Processing
+```python
+result = security_logging_sns.log_api_request(
+    event_type=EventType.API_REQUEST_PROCESSED,
+    actor_identifier="api_client_123",
+    actor_type=ActorType.SERVICE_PARTNER,
+    session_id="session-api-456",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="api-gateway",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-api@project.iam.gserviceaccount.com",
+    auth_protocol=AuthProtocol.API_KEY,
+    endpoint_path="/api/v1/customers",
+    http_method=HttpMethod.GET,
+    authorization_status=Status.SUCCESS,
+    endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL,
+    source_ip_address="203.0.113.54"
+)
+```
+**Generates:** `api_request_processed` event
+
+### Customer Data Actions Functions
+
+#### 9. log_multi_record_access - Multiple Records Access
+```python
+result = security_logging_sns.log_multi_record_access(
+    event_type=EventType.MULTI_RECORD_ACCESS,
+    actor_identifier="analyst@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-analyst-data",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="analytics-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-analytics@project.iam.gserviceaccount.com",
+    endpoint_path="/api/v1/customers",
+    data_sensitivity_level="Confidential-PII",
+    record_count=150,
+    customer_id_list=["cust_001", "cust_002", "cust_003"],
+    detail=Detail.VIEW_LIST,
+    source_ip_address="192.168.1.200"
+)
+```
+**Generates:** `multi_record_access` event with `detail: "detail.action.view_list"`
+
+#### 10. log_single_record_access - Single Record Access
+```python
+result = security_logging_sns.log_single_record_access(
+    event_type=EventType.SINGLE_RECORD_ACCESS,
+    actor_identifier="support@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-support-record",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="customer-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-customer@project.iam.gserviceaccount.com",
+    customer_id="cust_12345",
+    fields_accessed=["email", "phone", "address"],
+    detail=Detail.VIEW_RECORD,
+    source_ip_address="10.0.1.40"
+)
+```
+**Generates:** `single_record_access` event with `detail: "detail.action.view_record"`
+
+### Key Configuration Changes Functions
+
+#### 11. log_mfa_status_change - MFA Configuration Change
+```python
+result = security_logging_sns.log_mfa_status_change(
+    event_type=EventType.MFA_STATUS_CHANGE,
+    actor_identifier="admin@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-admin-mfa",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="security-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-security@project.iam.gserviceaccount.com",
+    target_object="alice@company.com",
+    status=Status.SUCCESS,
+    mfa_id="mfa-device-123",
+    detail=Detail.MFA_ENABLED,
+    source_ip_address="10.0.1.50"
+)
+```
+**Generates:** `mfa_status_change` event with `detail: "detail.action.mfa_enabled"`
+
+#### 12. log_password_change_reset - Password Change/Reset
+```python
+result = security_logging_sns.log_password_change_reset(
+    event_type=EventType.PASSWORD_CHANGE_RESET,
+    actor_identifier="alice@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-alice-pwd",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="auth-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-auth@project.iam.gserviceaccount.com",
+    target_object="alice@company.com",
+    status=Status.SUCCESS,
+    detail=Detail.PASSWORD_CHANGE,
+    source_ip_address="192.168.1.100"
+)
+```
+**Generates:** `password_change_reset` event with `detail: "detail.action.password_change"`
+
+#### 13. log_api_key_lifecycle - API Key Management
+```python
+result = security_logging_sns.log_api_key_lifecycle(
+    event_type=EventType.API_KEY_LIFECYCLE,
+    actor_identifier="admin@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-admin-api",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="api-management",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-api-mgmt@project.iam.gserviceaccount.com",
+    target_object="api_key_xyz123",
+    status=Status.SUCCESS,
+    detail=Detail.API_KEY_CREATED,
+    source_ip_address="10.0.1.55"
+)
+```
+**Generates:** `api_key_lifecycle` event with `detail: "detail.api_key.created"`
+
+#### 14. log_auth_mechanism_modification - Authentication Mechanism Changes
+```python
+result = security_logging_sns.log_auth_mechanism_modification(
+    event_type=EventType.AUTH_MECHANISM_MODIFICATION,
+    actor_identifier="admin@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-admin-auth",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="auth-config-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="prod-us-east-1",
+    service_account_id="sa-auth-config@project.iam.gserviceaccount.com",
+    target_object="sso_assertion_url",
+    status=Status.SUCCESS,
+    detail=Detail.NEW_SSO_PROVIDER,
+    source_ip_address="10.0.1.60"
+)
+```
+**Generates:** `auth_mechanism_modification` event with `detail: "detail.action.new_sso_provider"`
+
+## 🔑 Key Changes: Detail Field Approach
+
+**Important:** All functions now use the `detail` field instead of the old `action_type` parameter:
+
+- ✅ **New Approach**: `detail=Detail.USER_DISABLED` → generates `"detail": "detail.action.user_disabled"`
+- ❌ **Old Approach**: `action_type="user_disabled"` (no longer supported)
+
+### Common Detail Field Values:
+- **Authentication**: `Detail.USER_INITIATED`, `Detail.SESSION_TIMEOUT`, `Detail.INVALID_CREDENTIALS`
+- **Actions**: `Detail.USER_DISABLED`, `Detail.IMPERSONATION_START`, `Detail.VIEW_LIST`, `Detail.VIEW_RECORD`
+- **Configuration**: `Detail.MFA_ENABLED`, `Detail.PASSWORD_CHANGE`, `Detail.API_KEY_CREATED`, `Detail.NEW_SSO_PROVIDER`
+
+All detail values are automatically formatted as standardized strings (e.g., `Detail.USER_DISABLED` becomes `"detail.action.user_disabled"`).
 
 ## 📚 Complete API Reference
 
@@ -633,14 +953,18 @@ result = security_logging_sns.log_user_login(
 ```python
 # ✅ Good - Use standardized success context
 security_logging_sns.log_user_login(
-    detail=Detail.USER_INITIATED,
-    login_successful=True
+    event_type=EventType.LOGIN_SUCCESS,
+    status=Status.SUCCESS,
+    detail=Detail.USER_INITIATED
+    # ... other required parameters
 )
 
 # ✅ Good - Use standardized failure reasons
 security_logging_sns.log_user_login(
-    detail=Detail.ACCOUNT_LOCKED,
-    login_successful=False
+    event_type=EventType.LOGIN_FAILURE,
+    status=Status.FAILURE,
+    detail=Detail.ACCOUNT_LOCKED
+    # ... other required parameters
 )
 ```
 
