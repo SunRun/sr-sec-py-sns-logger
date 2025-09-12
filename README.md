@@ -987,6 +987,18 @@ python3 -m unittest test_security_logging -v
 python3 test_logging.py
 ```
 
+### Run Comprehensive Production Tests
+```bash
+python3 test_comprehensive_logging.py
+```
+
+This script tests all 16 security event types against a real SNS topic and includes:
+- **Phase 1**: Basic connectivity test (5 events)
+- **Phase 2**: Comprehensive test suite (16 events covering all categories)
+- Interactive mode with user confirmation for comprehensive tests
+- Proper error handling and validation
+- Production-ready examples for all event types
+
 ### Install Testing Dependencies
 ```bash
 pip install -r requirements-test.txt
@@ -1029,6 +1041,7 @@ pytest --cov=security_logging_sns --cov-report=html
 | `sns_publisher.py` | AWS SNS integration | SNS client, message publishing, retry logic |
 | `test_security_logging.py` | Unit tests | Comprehensive test coverage for all functions |
 | `test_logging.py` | Integration demo | Working examples and validation demonstrations |
+| `test_comprehensive_logging.py` | Production test suite | Complete test of all 16 event types to real SNS topic |
 | `run_tests.py` | Test runner | Unified test execution script |
 
 ### Dependencies
