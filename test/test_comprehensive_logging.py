@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+t#!/usr/bin/env python3
 """
 Comprehensive Security Logging Test Suite
 
@@ -20,6 +20,11 @@ The script runs in two phases:
 
 Configure the SNS topic ARN and region in the initialize_logging() function.
 """
+
+import sys
+import os
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
 
 import security_logging_sns
 from security_log_fields import (

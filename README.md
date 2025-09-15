@@ -970,43 +970,70 @@ security_logging_sns.log_user_login(
 
 ## 🧪 Testing & Development
 
-The module includes comprehensive unit tests and integration examples for development and validation:
+The module includes comprehensive testing at multiple levels, all organized in the `test/` directory:
 
-### Run All Tests
-```bash
-python3 run_tests.py
+### Test Structure
+```
+test/
+├── test_security_logging.py      # Unit tests
+├── test_logging.py               # Demo/Examples  
+├── test_comprehensive_logging.py # Integration tests
+├── run_tests.py                  # Test runner
+├── pytest.ini                   # Pytest configuration
+└── requirements-test.txt         # Test dependencies
 ```
 
-### Run Unit Tests Only
+### Test Types
+
+#### **Unit Tests** 🔬
+Test individual functions in isolation with mocks:
 ```bash
+cd test/
 python3 -m unittest test_security_logging -v
 ```
 
-### Run Demo/Integration Tests Only
+#### **Demo/Examples** 📋  
+Basic usage demonstrations and examples:
 ```bash
+cd test/
 python3 test_logging.py
 ```
 
-### Run Comprehensive Production Tests
+#### **Integration Tests** 🔗
+End-to-end testing with real AWS services:
 ```bash
+cd test/
 python3 test_comprehensive_logging.py
 ```
 
-This script tests all 16 security event types against a real SNS topic and includes:
-- **Phase 1**: Basic connectivity test (5 events)
-- **Phase 2**: Comprehensive test suite (16 events covering all categories)
-- Interactive mode with user confirmation for comprehensive tests
-- Proper error handling and validation
+**Integration Test Features:**
+- Tests all 16 security event types against real SNS topic
+- **Phase 1**: Basic connectivity (5 events) - validates SNS access  
+- **Phase 2**: Comprehensive suite (16 events) - full system test
+- Real cloud pipeline: SNS → Firehose → Lambda → S3
+- Interactive mode with user confirmation
 - Production-ready examples for all event types
+
+**⚠️ Integration Test Requirements:**
+- Valid AWS credentials with SNS access
+- Real SNS topic ARN configured in script
+- Proper IAM permissions for cross-account access (if applicable)
+
+#### **Run All Tests**
+```bash
+cd test/
+python3 run_tests.py
+```
 
 ### Install Testing Dependencies
 ```bash
-pip install -r requirements-test.txt
+pip install -r test/requirements-test.txt
 ```
 
 ### Run Tests with Coverage (using pytest)
 ```bash
-pytest --cov=security_logging_sns --cov=security_log_fields --cov-report=html
+cd test/
+pytest --cov=../security_logging_sns --cov=../security_log_fields --cov-report=html
 ```
 
 ### Test Coverage
@@ -1039,10 +1066,13 @@ pytest --cov=security_logging_sns --cov-report=html
 | `security_logging_sns.py` | Main logging module | All logging functions, validation, base log creation |
 | `security_log_fields.py` | Standardized constants | Event types, status values, actor types, etc. |
 | `sns_publisher.py` | AWS SNS integration | SNS client, message publishing, retry logic |
-| `test_security_logging.py` | Unit tests | Comprehensive test coverage for all functions |
-| `test_logging.py` | Integration demo | Working examples and validation demonstrations |
-| `test_comprehensive_logging.py` | Production test suite | Complete test of all 16 event types to real SNS topic |
-| `run_tests.py` | Test runner | Unified test execution script |
+| **`test/`** | **Testing directory** | **All test-related files organized separately** |
+| `test/test_security_logging.py` | Unit tests | Comprehensive test coverage for all functions |
+| `test/test_logging.py` | Demo/Examples | Working examples and usage demonstrations |
+| `test/test_comprehensive_logging.py` | Integration tests | End-to-end testing with real AWS services |
+| `test/run_tests.py` | Test runner | Unified test execution script |
+| `test/pytest.ini` | Pytest config | Test configuration and settings |
+| `test/requirements-test.txt` | Test dependencies | Testing-specific package requirements |
 
 ### Dependencies
 

@@ -4,6 +4,11 @@ Unit tests for the security logging module.
 Tests validation logic, error handling, and proper log generation.
 """
 
+import sys
+import os
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
+
 import unittest
 from unittest.mock import patch, MagicMock
 import json

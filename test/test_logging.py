@@ -4,6 +4,11 @@ Test script to demonstrate the refactored security logging with new schema valid
 This captures and displays the log messages that would be sent, including validation failures.
 """
 
+import sys
+import os
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
+
 import security_logging_sns
 from security_log_fields import (
     Status, ActorType, LogCategory, EventType, AuthProtocol, Detail, MfaType,
