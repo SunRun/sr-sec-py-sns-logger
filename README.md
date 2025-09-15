@@ -34,16 +34,9 @@ import security_logging_sns
 from security_log_fields import *
 
 # Initialize (one time at app startup)
-# Uses default production ARN and region - no parameters needed!
 security_logging_sns.init_security_logging(
     test_mode=True  # Remove for production
 )
-
-# Or override defaults if needed:
-# security_logging_sns.init_security_logging(
-#     topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",
-#     region_name="us-east-1"
-# )
 
 # Log a user login
 result = security_logging_sns.log_user_login(
@@ -80,11 +73,8 @@ from security_log_fields import *
 def initialize_logging():
     """Initialize security logging - call once at app startup."""
     try:
-        # Production initialization - uses defaults, can override with env vars
+        # Production initialization
         security_logging_sns.init_security_logging()
-        # Defaults: arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev
-        # Region: us-west-2
-        # Override with SECURITY_LOGS_TOPIC_ARN and AWS_REGION env vars if needed
         print("✅ Security logging initialized")
         return True
     except Exception as e:
@@ -202,18 +192,13 @@ if __name__ == "__main__":
 ```
 
 ## 🚀 Getting Started
-### Step 1: Configure Your Environment (Optional)
-The module now includes production defaults! Environment variables are **optional** for most users.
+### Step 1: No Configuration Required
+The security logging module is pre-configured for production use. Simply initialize and start logging security events.
 
-**Default Configuration:**
-- **Topic ARN**: `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev`
-- **Region**: `us-west-2`
-
-**Override defaults only if needed:**
-```bash
-export SECURITY_LOGS_TOPIC_ARN="arn:aws:sns:REGION:ACCOUNT_ID:your-custom-topic"
-export AWS_REGION="us-east-1"  # Set to your preferred AWS region
-```
+**Production Configuration:**
+- ✅ **Centralized Security Logging**: All events automatically sent to the security team's monitoring system
+- ✅ **Compliance Ready**: Pre-configured for security audit and compliance requirements
+- ✅ **Zero Configuration**: No setup required for production deployments
 
 ### Step 2: Initialize Security Logging
 At the entry point of your application (e.g., lambda_handler), initialize the security logging module. This should be done once at application startup.
@@ -225,8 +210,7 @@ import os
 import security_logging_sns
 
 # Initialize security logging at the global scope for efficiency
-# Uses production defaults: arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev
-# Override with environment variables if needed
+# Automatically configured for production security monitoring
 security_logging_sns.init_security_logging()
 
 def lambda_handler(event, context):
@@ -319,37 +303,33 @@ result = security_logging_sns.log_user_login(
 ### Initialization Parameters
 
 ```python
-# Simple initialization - uses production defaults
+# Production initialization
 security_logging_sns.init_security_logging()
 
-# Or customize if needed
+# Development/Testing only
 security_logging_sns.init_security_logging(
-    topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",  # Optional, overrides default
-    region_name="us-east-1",           # Optional, overrides default us-west-2
-    test_mode=False                    # Optional, set True for testing without AWS
+    test_mode=True  # Prints to console instead of sending to security team
 )
 ```
 
 | Parameter | Type | Required | Description | Default |
 |-----------|------|----------|-------------|---------|
-| `topic_arn` | str | **No** | AWS SNS Topic ARN for security logs | `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev` |
-| `region_name` | str | No | AWS region for SNS client | `us-west-2` |
-| `test_mode` | bool | No | Enable test mode (no AWS calls, prints to console) | `False` |
+| `test_mode` | bool | No | Enable test mode (prints to console, no security logging) | `False` |
 
-**🎯 Production Ready**: No parameters required! Uses sensible defaults with environment variable override capability.
+**🔒 Security First**: Pre-configured for centralized security monitoring. No configuration required for production use.
 
 ### Environment Variables
 
-| Variable | Description | Example | Default |
-|----------|-------------|---------|---------|  
-| `SECURITY_LOGS_TOPIC_ARN` | Override default SNS topic ARN | `arn:aws:sns:us-east-1:123456789012:custom-topic` | `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev` |
-| `AWS_REGION` | Override default AWS region | `us-east-1` | `us-west-2` |
+| Variable | Description | Example |
+|----------|-------------|---------|  
+| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `AKIAIOSFODNN7EXAMPLE` |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 | `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 
 ### AWS Permissions Required
 
-Your application's IAM role or user needs the following permission:
+Your application's IAM role or user needs the following permission for security logging:
 
 ```json
 {
@@ -360,7 +340,7 @@ Your application's IAM role or user needs the following permission:
             "Action": [
                 "sns:Publish"
             ],
-            "Resource": "arn:aws:sns:REGION:ACCOUNT:your-security-logs-topic"
+            "Resource": "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev"
         }
     ]
 }
@@ -691,25 +671,17 @@ All detail values are automatically formatted as standardized strings (e.g., `De
 Initialize the security logging module. **Call this once at application startup.**
 
 **Parameters:**
-- `topic_arn` (str, optional): SNS topic ARN. Defaults to `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev`
-- `region_name` (str, optional): AWS region. Defaults to `us-west-2`
-- `test_mode` (bool, optional): Enable test mode
+- `test_mode` (bool, optional): Enable test mode for development (prints to console instead of security logging)
 
 **Raises:**
-- `Exception`: If AWS SNS client initialization fails
+- `Exception`: If security logging system initialization fails
 
 **Examples:**
 ```python
-# Production - uses defaults (recommended)
+# Production - ready to use
 security_logging_sns.init_security_logging()
 
-# Production - custom topic/region
-security_logging_sns.init_security_logging(
-    topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",
-    region_name="us-east-1"
-)
-
-# Development/Testing
+# Development/Testing only
 security_logging_sns.init_security_logging(test_mode=True)
 ```
 
@@ -891,9 +863,6 @@ All logging functions return a dictionary with the following structure:
 ### Common Error Messages
 
 #### Initialization Errors
-- `"topic_arn must be provided either as parameter or SECURITY_LOGS_TOPIC_ARN environment variable"`
-  - **Solution**: Set the SNS topic ARN via parameter or environment variable
-
 - `"Security logging not initialized. Call init_security_logging() first."`
   - **Solution**: Call `init_security_logging()` before using any logging functions
 
@@ -940,10 +909,10 @@ security_logging_sns.log_user_login(...)  # Ignores failures
 ```python
 # ✅ Good - Use test mode during development
 security_logging_sns.init_security_logging(
-    test_mode=True  # No AWS calls, prints to console
+    test_mode=True  # No security logging, prints to console
 )
 
-# ✅ Good - Environment-based configuration
+# ✅ Good - Environment-based test mode
 security_logging_sns.init_security_logging(
     test_mode=os.getenv("ENVIRONMENT") != "production"
 )
@@ -1544,7 +1513,8 @@ The `detail` field provides context for events and uses these standardized value
 1. **Import Errors**: Ensure all files are in the same directory or Python path
 2. **AWS Credentials**: Check IAM permissions and credential configuration
 3. **Validation Failures**: Use constants from `security_log_fields.py`
-4. **Test Failures**: Run `python3 -m pip install -r requirements-test.txt`
+4. **Test Failures**: Run `python3 -m pip install -r test/requirements-test.txt`
+5. **Security Logging Errors**: Ensure your application has the required SNS publish permissions
 
 ### Getting Help
 - **Documentation**: This README contains comprehensive usage information
