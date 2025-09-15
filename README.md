@@ -970,54 +970,25 @@ security_logging_sns.log_user_login(
 
 ## 🧪 Testing & Development
 
-The module includes comprehensive testing at multiple levels, all organized in the `test/` directory:
+The module includes essential testing organized in the `test/` directory:
 
 ### Test Structure
 ```
 test/
-├── test_security_logging.py      # Unit tests
-├── test_logging.py               # Demo/Examples  
-├── test_comprehensive_logging.py # Integration tests
+├── test_security_logging.py      # Core unit tests
 ├── run_tests.py                  # Test runner
 ├── pytest.ini                   # Pytest configuration
 └── requirements-test.txt         # Test dependencies
 ```
 
-### Test Types
+### Running Tests
 
 #### **Unit Tests** 🔬
-Test individual functions in isolation with mocks:
+Test core functionality in test mode (no AWS credentials required):
 ```bash
 cd test/
 python3 -m unittest test_security_logging -v
 ```
-
-#### **Demo/Examples** 📋  
-Basic usage demonstrations and examples:
-```bash
-cd test/
-python3 test_logging.py
-```
-
-#### **Integration Tests** 🔗
-End-to-end testing with real AWS services:
-```bash
-cd test/
-python3 test_comprehensive_logging.py
-```
-
-**Integration Test Features:**
-- Tests all 16 security event types against real SNS topic
-- **Phase 1**: Basic connectivity (5 events) - validates SNS access  
-- **Phase 2**: Comprehensive suite (16 events) - full system test
-- Real cloud pipeline: SNS → Firehose → Lambda → S3
-- Interactive mode with user confirmation
-- Production-ready examples for all event types
-
-**⚠️ Integration Test Requirements:**
-- Valid AWS credentials with SNS access
-- Real SNS topic ARN configured in script
-- Proper IAM permissions for cross-account access (if applicable)
 
 #### **Run All Tests**
 ```bash
@@ -1038,20 +1009,19 @@ pytest --cov=../security_logging_sns --cov=../security_log_fields --cov-report=h
 
 ### Test Coverage
 The unit tests cover:
-- ✅ **Validation Functions**: All standardized field validation logic
-- ✅ **Logging Functions**: Each logging function with valid/invalid parameters
-- ✅ **Error Handling**: Missing fields, invalid values, and exception handling
-- ✅ **Timestamp Management**: Auto-generation and custom timestamp preservation
-- ✅ **Initialization**: Proper setup and error conditions
-- ✅ **Edge Cases**: Empty parameters, whitespace-only values, and publisher failures
+- ✅ **Core Functions**: User login, API request, and other logging functions
+- ✅ **Initialization**: Proper setup in test mode
+- ✅ **Error Handling**: Missing fields and invalid values handled gracefully
+- ✅ **Validation**: Standardized field validation
+- ✅ **Test Mode**: Functions work without AWS credentials
 
 ### Development Setup
 ```bash
 # Install development dependencies
-pip install -r requirements-test.txt
+pip install -r test/requirements-test.txt
 
 # Run all tests
-python3 run_tests.py
+python3 test/run_tests.py
 
 # Run tests with coverage
 pytest --cov=security_logging_sns --cov-report=html
@@ -1066,10 +1036,8 @@ pytest --cov=security_logging_sns --cov-report=html
 | `security_logging_sns.py` | Main logging module | All logging functions, validation, base log creation |
 | `security_log_fields.py` | Standardized constants | Event types, status values, actor types, etc. |
 | `sns_publisher.py` | AWS SNS integration | SNS client, message publishing, retry logic |
-| **`test/`** | **Testing directory** | **All test-related files organized separately** |
-| `test/test_security_logging.py` | Unit tests | Comprehensive test coverage for all functions |
-| `test/test_logging.py` | Demo/Examples | Working examples and usage demonstrations |
-| `test/test_comprehensive_logging.py` | Integration tests | End-to-end testing with real AWS services |
+| **`test/`** | **Testing directory** | **Essential test files** |
+| `test/test_security_logging.py` | Unit tests | Core functionality tests for all logging functions |
 | `test/run_tests.py` | Test runner | Unified test execution script |
 | `test/pytest.ini` | Pytest config | Test configuration and settings |
 | `test/requirements-test.txt` | Test dependencies | Testing-specific package requirements |

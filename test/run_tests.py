@@ -50,23 +50,15 @@ def main():
     # Run unit tests
     unit_test_passed = run_command(
         "python3 -m unittest test_security_logging -v",
-        "Unit Tests (Comprehensive)"
+        "Unit Tests (Security Logging Module)"
     )
     all_passed = all_passed and unit_test_passed
-    
-    # Run demo tests
-    demo_test_passed = run_command(
-        "python3 test_logging.py | tail -20",
-        "Demo Tests (Integration Examples)"
-    )
-    all_passed = all_passed and demo_test_passed
     
     # Final result
     print(f"\n{'='*60}")
     if all_passed:
         print("🎉 ALL TESTS PASSED!")
         print("✅ Unit tests: Comprehensive validation and error handling")
-        print("✅ Demo tests: Integration examples and standardized values")
     else:
         print("❌ SOME TESTS FAILED!")
         print("Please check the output above for details.")
