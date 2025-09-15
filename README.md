@@ -322,10 +322,8 @@ security_logging_sns.init_security_logging(
 
 | Variable | Description | Example |
 |----------|-------------|---------|  
-| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
-| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `AKIAIOSFODNN7EXAMPLE` |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
+| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `YOUR_ACCESS_KEY_ID` |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `YOUR_SECRET_ACCESS_KEY` |
 
 ### AWS Permissions Required
 
