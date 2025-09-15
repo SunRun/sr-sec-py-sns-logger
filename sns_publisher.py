@@ -37,19 +37,19 @@ class SNSPublisher:
         self.test_mode = test_mode
         
         if not test_mode:
-            # Create a copy of the base config and override region if provided
-            if region_name:
-                config = Config(
-                    retries=BOTO3_CONFIG.retries,
-                    connect_timeout=BOTO3_CONFIG.connect_timeout,
-                    read_timeout=BOTO3_CONFIG.read_timeout,
-                    max_pool_connections=BOTO3_CONFIG.max_pool_connections,
-                    signature_version=BOTO3_CONFIG.signature_version,
-                    user_agent_extra=BOTO3_CONFIG.user_agent_extra,
-                    region_name=region_name
-                )
-            else:
-                config = BOTO3_CONFIG
+            # Always create a config with region specified (either provided or default us-west-2)
+            if region_name is None:
+                region_name = "us-west-2"  # Default region
+                
+            config = Config(
+                retries=BOTO3_CONFIG.retries,
+                connect_timeout=BOTO3_CONFIG.connect_timeout,
+                read_timeout=BOTO3_CONFIG.read_timeout,
+                max_pool_connections=BOTO3_CONFIG.max_pool_connections,
+                signature_version=BOTO3_CONFIG.signature_version,
+                user_agent_extra=BOTO3_CONFIG.user_agent_extra,
+                region_name=region_name
+            )
             
             # Initialize the SNS client with comprehensive configuration
             self.sns_client = boto3.client('sns', config=config)

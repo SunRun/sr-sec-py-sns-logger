@@ -18,22 +18,30 @@ def init_security_logging(topic_arn: str = None, region_name: str = None, test_m
     Initialize the security logging module.
     
     Args:
-        topic_arn: SNS Topic ARN. If None, reads from SECURITY_LOGS_TOPIC_ARN env var
-        region_name: AWS region. If None, reads from AWS_REGION env var or uses AWS default
+        topic_arn: SNS Topic ARN. If None, uses default production ARN or reads from SECURITY_LOGS_TOPIC_ARN env var
+        region_name: AWS region. If None, uses default us-west-2 or reads from AWS_REGION env var
         test_mode: If True, logs are printed to console instead of sent to SNS
     """
     global _sns_publisher
     
+    # Default production ARN and region
+    DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev"
+    DEFAULT_REGION = "us-west-2"
+    
     if topic_arn is None:
+        # First try environment variable, then use default
         topic_arn = os.environ.get("SECURITY_LOGS_TOPIC_ARN")
         if not topic_arn:
             if test_mode:
                 topic_arn = "arn:aws:sns:us-east-1:123456789012:test-security-logs"
             else:
-                raise ValueError("topic_arn must be provided or SECURITY_LOGS_TOPIC_ARN environment variable must be set")
+                topic_arn = DEFAULT_TOPIC_ARN
     
     if region_name is None:
+        # First try environment variable, then use default
         region_name = os.environ.get("AWS_REGION")
+        if not region_name:
+            region_name = DEFAULT_REGION
     
     _sns_publisher = SNSPublisher(topic_arn=topic_arn, region_name=region_name, test_mode=test_mode)
 

@@ -34,10 +34,16 @@ import security_logging_sns
 from security_log_fields import *
 
 # Initialize (one time at app startup)
+# Uses default production ARN and region - no parameters needed!
 security_logging_sns.init_security_logging(
-    topic_arn="arn:aws:sns:us-east-1:123456789012:security-logs",
     test_mode=True  # Remove for production
 )
+
+# Or override defaults if needed:
+# security_logging_sns.init_security_logging(
+#     topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",
+#     region_name="us-east-1"
+# )
 
 # Log a user login
 result = security_logging_sns.log_user_login(
@@ -74,11 +80,11 @@ from security_log_fields import *
 def initialize_logging():
     """Initialize security logging - call once at app startup."""
     try:
-        # Production initialization
-        security_logging_sns.init_security_logging(
-            topic_arn=os.getenv("SECURITY_LOGS_TOPIC_ARN"),
-            region_name=os.getenv("AWS_REGION", "us-east-1")
-        )
+        # Production initialization - uses defaults, can override with env vars
+        security_logging_sns.init_security_logging()
+        # Defaults: arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev
+        # Region: us-west-2
+        # Override with SECURITY_LOGS_TOPIC_ARN and AWS_REGION env vars if needed
         print("✅ Security logging initialized")
         return True
     except Exception as e:
@@ -196,11 +202,16 @@ if __name__ == "__main__":
 ```
 
 ## 🚀 Getting Started
-### Step 1: Configure Your Environment
-The module requires the ARN of the destination SNS topic. Set the following environment variable in your application's deployment environment (e.g., in your Lambda function configuration or a .env file).
+### Step 1: Configure Your Environment (Optional)
+The module now includes production defaults! Environment variables are **optional** for most users.
 
-```
-export SECURITY_LOGS_TOPIC_ARN="arn:aws:sns:REGION:ACCOUNT_ID:your-security-logs-topic"
+**Default Configuration:**
+- **Topic ARN**: `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev`
+- **Region**: `us-west-2`
+
+**Override defaults only if needed:**
+```bash
+export SECURITY_LOGS_TOPIC_ARN="arn:aws:sns:REGION:ACCOUNT_ID:your-custom-topic"
 export AWS_REGION="us-east-1"  # Set to your preferred AWS region
 ```
 
@@ -214,7 +225,8 @@ import os
 import security_logging_sns
 
 # Initialize security logging at the global scope for efficiency
-# This will automatically read SECURITY_LOGS_TOPIC_ARN and AWS_REGION from environment
+# Uses production defaults: arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev
+# Override with environment variables if needed
 security_logging_sns.init_security_logging()
 
 def lambda_handler(event, context):
@@ -307,27 +319,31 @@ result = security_logging_sns.log_user_login(
 ### Initialization Parameters
 
 ```python
+# Simple initialization - uses production defaults
+security_logging_sns.init_security_logging()
+
+# Or customize if needed
 security_logging_sns.init_security_logging(
-    topic_arn="arn:aws:sns:us-east-1:123456789012:security-logs",  # Required in production
-    region_name="us-east-1",           # Optional, defaults to AWS SDK default
+    topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",  # Optional, overrides default
+    region_name="us-east-1",           # Optional, overrides default us-west-2
     test_mode=False                    # Optional, set True for testing without AWS
 )
 ```
 
 | Parameter | Type | Required | Description | Default |
 |-----------|------|----------|-------------|---------|
-| `topic_arn` | str | Yes* | AWS SNS Topic ARN for security logs | `None` (reads from `SECURITY_LOGS_TOPIC_ARN` env var) |
-| `region_name` | str | No | AWS region for SNS client | AWS SDK default resolution |
+| `topic_arn` | str | **No** | AWS SNS Topic ARN for security logs | `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev` |
+| `region_name` | str | No | AWS region for SNS client | `us-west-2` |
 | `test_mode` | bool | No | Enable test mode (no AWS calls, prints to console) | `False` |
 
-*Required unless `SECURITY_LOGS_TOPIC_ARN` environment variable is set.
+**🎯 Production Ready**: No parameters required! Uses sensible defaults with environment variable override capability.
 
 ### Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `SECURITY_LOGS_TOPIC_ARN` | SNS topic ARN (alternative to passing topic_arn parameter) | `arn:aws:sns:us-east-1:123456789012:security-logs` |
-| `AWS_REGION` | Default AWS region | `us-east-1` |
+| Variable | Description | Example | Default |
+|----------|-------------|---------|---------|  
+| `SECURITY_LOGS_TOPIC_ARN` | Override default SNS topic ARN | `arn:aws:sns:us-east-1:123456789012:custom-topic` | `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev` |
+| `AWS_REGION` | Override default AWS region | `us-east-1` | `us-west-2` |
 | `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `AKIAIOSFODNN7EXAMPLE` |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` |
 
@@ -675,19 +691,22 @@ All detail values are automatically formatted as standardized strings (e.g., `De
 Initialize the security logging module. **Call this once at application startup.**
 
 **Parameters:**
-- `topic_arn` (str, optional): SNS topic ARN
-- `region_name` (str, optional): AWS region
+- `topic_arn` (str, optional): SNS topic ARN. Defaults to `arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev`
+- `region_name` (str, optional): AWS region. Defaults to `us-west-2`
 - `test_mode` (bool, optional): Enable test mode
 
 **Raises:**
-- `ValueError`: If topic_arn is missing in production mode
 - `Exception`: If AWS SNS client initialization fails
 
-**Example:**
+**Examples:**
 ```python
-# Production
+# Production - uses defaults (recommended)
+security_logging_sns.init_security_logging()
+
+# Production - custom topic/region
 security_logging_sns.init_security_logging(
-    topic_arn="arn:aws:sns:us-east-1:123456789012:security-logs"
+    topic_arn="arn:aws:sns:us-east-1:123456789012:custom-topic",
+    region_name="us-east-1"
 )
 
 # Development/Testing
