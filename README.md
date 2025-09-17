@@ -11,13 +11,86 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
 - 📋 **Schema Compliant**: Implements standardized base_log + log_specifics structure
 
-##  📦 Installation
-This module is intended to be copied or included as a submodule in your project's repository. There are no external dependencies beyond the standard AWS SDK.
+##  📦 Installation & Integration
 
-```
-# Clone this repository into your project
+### Step 1: Add as Git Submodule
+```bash
 git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
 ```
+
+### Step 2: Create Symlinks for IDE Support
+Navigate to your application source directory and create symlinks:
+
+```bash
+ln -sf ../../sr-sec-py-sns-logger/security_logging_sns.py security_logging_sns.py
+ln -sf ../../sr-sec-py-sns-logger/security_log_fields.py security_log_fields.py
+ln -sf ../../sr-sec-py-sns-logger/sns_publisher.py sns_publisher.py
+```
+
+### Step 3: Configure AWS Permissions
+Add SNS permissions to your application's IAM role:
+
+```hcl
+# Terraform example - replace YOUR_SECURITY_ACCOUNT_ID
+{
+  Effect = "Allow"
+  Action = ["sns:Publish"]
+  Resource = "arn:aws:sns:${var.aws_region}:YOUR_SECURITY_ACCOUNT_ID:sr-sec-logging-log-topic-${local.environment}"
+}
+
+# If SNS topic is KMS encrypted, also add:
+{
+  Effect = "Allow"
+  Action = [
+    "kms:Encrypt",
+    "kms:Decrypt", 
+    "kms:ReEncrypt*",
+    "kms:GenerateDataKey*",
+    "kms:DescribeKey"
+  ]
+  Resource = "arn:aws:kms:${var.aws_region}:YOUR_SECURITY_ACCOUNT_ID:key/*"
+}
+```
+
+### Step 4: Initialize in Your Application
+```python
+import security_logging_sns
+
+# Initialize once at application startup
+try:
+    security_logging_sns.init_security_logging()
+except Exception as e:
+    logging.getLogger(__name__).warning(f"Failed to initialize security logging: {e}")
+```
+
+### Step 5: Use in Your Code
+```python
+# Example: Log user authentication
+result = security_logging_sns.log_user_login(
+    event_type=EventType.LOGIN_SUCCESS,
+    actor_identifier="user@company.com",
+    actor_type=ActorType.HUMAN_INTERNAL,
+    session_id="session-123",
+    cloud_env_type=CloudEnvType.PROD,
+    service_name="auth-service",
+    cloud_env_unique_id="123456789012",
+    cloud_env_name="production",
+    service_account_id="lambda-execution-role",
+    user_agent="Mozilla/5.0...",
+    user_role=UserRole.ADMIN,
+    status=Status.SUCCESS,
+    detail=Detail.USER_INITIATED
+)
+
+# Always handle failures gracefully
+if result.get("status") == "failure":
+    logger.warning(f"Security logging failed: {result.get('message')}")
+```
+
+### 🚨 Key Requirements
+- ✅ **Arrays for customer_id_list**: Pass `["id1", "id2"]` not `"id1,id2"`
+- ✅ **No source_ip_address for Lambda**: Omit this field for serverless functions  
+- ✅ **Use standardized constants**: Import from `security_log_fields.py`
 
 ## Dependencies
 Ensure you have the boto3 library installed in your Python environment.
