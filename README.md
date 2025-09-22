@@ -35,6 +35,78 @@ Implementing comprehensive security logging is not just a compliance requirement
 
 Without proper security logging, organizations operate blind to internal threats, compliance violations, and sophisticated attacks that bypass perimeter defenses. This package ensures every critical security event is captured, formatted consistently, and delivered to your security monitoring systems for analysis and response.
 
+## 📋 **CRITICAL FIRST STEP: Review Required Fields**
+
+**⚠️ MANDATORY REQUIREMENT**: Before implementing any security logging functions, you **MUST** thoroughly review both the standardized field definitions and the organizational logging framework:
+
+### 🔗 **Required Reading**:
+1. **[Minimum Standard Logging Framework](https://sunrun.jira.com/wiki/spaces/SUNSEC/pages/4267769872/Minimum+Standard+Logging+Framework)** - Organizational security logging standards and requirements
+2. **[security_log_fields.py](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py)** - Technical field definitions and constants
+
+**Why This Review is Critical:**
+
+1. **🎯 Standardized Values Required**: All security log events MUST use the predefined constants from `security_log_fields.py`. Custom or arbitrary string values will cause validation failures.
+
+2. **📊 Schema Compliance**: The security logging system enforces strict schema validation. Understanding the required fields for each event type speeds up onboarding.
+
+3. **🔍 Audit & Compliance**: Security teams and auditors expect consistent, standardized field values across all applications. Deviating from the standard creates compliance gaps.
+
+4. **🛠️ Implementation Success**: Reviewing the field definitions first will save significant development time by preventing common validation errors.
+
+### **Key Areas to Review:**
+
+- **Event Types**: Complete list of supported security events (`EventType` class)
+- **Actor Types**: Standardized actor classifications (`ActorType` class) 
+- **Status Values**: Success/failure indicators (`Status` class)
+- **Detail Values**: Contextual information for events (`Detail` class)
+- **User Roles**: Role classifications for your organization (`UserRole` class)
+- **Required vs Optional Fields**: Understanding which fields are mandatory for each event type
+
+### **Implementation Workflow:**
+
+1. **📋 Step 1**: Review the [Minimum Standard Logging Framework](https://sunrun.jira.com/wiki/spaces/SUNSEC/pages/4267769872/Minimum+Standard+Logging+Framework) to understand organizational requirements
+2. **📖 Step 2**: Review [`security_log_fields.py`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py) for technical field definitions
+3. **🎯 Step 3**: Identify the specific event types your application needs to log
+4. **✅ Step 4**: Map your application's data to the standardized field values
+5. **🔧 Step 5**: Implement security logging using the predefined constants
+6. **🧪 Step 6**: Test in `test_mode=True` to validate field usage before production
+
+**❌ Common Mistakes to Avoid:**
+- Using raw strings instead of predefined constants (e.g., `"admin"` instead of `UserRole.ADMIN`)
+- Skipping required fields for specific event types
+- Creating custom detail values instead of using standardized `Detail` constants
+- Not importing the constants properly from `security_log_fields.py`
+
+## 🚀 **Requesting New Features & Field Values**
+
+If you need additional event types, field values, or functionality that isn't currently supported in the security logging framework, you can request enhancements:
+
+### **Current Process:**
+📧 **Contact the Security Logging Team:**
+- **Raul Reutov**: [raul.reutov@sunrun.com](mailto:raul.reutov@sunrun.com)
+- **Jeffory Shields**: [jeffory.shields@sunrun.com](mailto:jeffory.shields@sunrun.com)
+
+### **What to Include in Your Request:**
+1. **🎯 Business Justification**: Why is this new field/event type needed?
+2. **📋 Technical Details**: Specific field names, values, or event types required
+3. **🔍 Use Case Description**: How will this be used in your application?
+4. **⏰ Timeline**: When do you need this implemented?
+5. **📊 Impact Assessment**: How many applications/teams will benefit from this change?
+
+### **Types of Requests We Support:**
+- ✅ New event types for emerging security use cases
+- ✅ Additional standardized field values (e.g., new user roles, detail values)
+- ✅ New authentication protocols or MFA types
+- ✅ Enhanced validation logic or error handling
+- ✅ Additional data sensitivity classifications
+
+### **Response Timeline:**
+- **Initial Response**: Within 2 business days
+- **Implementation**: Varies based on complexity and security review requirements
+- **Testing & Rollout**: Coordinated with requesting teams
+
+> **📝 Note**: The request process will evolve in the future as the security logging framework matures. We'll update this section with new procedures as they become available.
+
 ## 🚨 **REQUIRED: Security Logging Failure Monitoring**
 
 **⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk and compliance violation.
