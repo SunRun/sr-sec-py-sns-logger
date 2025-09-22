@@ -77,36 +77,6 @@ Without proper security logging, organizations operate blind to internal threats
 - Creating custom detail values instead of using standardized `Detail` constants
 - Not importing the constants properly from `security_log_fields.py`
 
-## 🚀 **Requesting New Features & Field Values**
-
-If you need additional event types, field values, or functionality that isn't currently supported in the security logging framework, you can request enhancements:
-
-### **Current Process:**
-📧 **Contact the Security Logging Team:**
-- **Raul Reutov**: [raul.reutov@sunrun.com](mailto:raul.reutov@sunrun.com)
-- **Jeffory Shields**: [jeffory.shields@sunrun.com](mailto:jeffory.shields@sunrun.com)
-
-### **What to Include in Your Request:**
-1. **🎯 Business Justification**: Why is this new field/event type needed?
-2. **📋 Technical Details**: Specific field names, values, or event types required
-3. **🔍 Use Case Description**: How will this be used in your application?
-4. **⏰ Timeline**: When do you need this implemented?
-5. **📊 Impact Assessment**: How many applications/teams will benefit from this change?
-
-### **Types of Requests We Support:**
-- ✅ New event types for emerging security use cases
-- ✅ Additional standardized field values (e.g., new user roles, detail values)
-- ✅ New authentication protocols or MFA types
-- ✅ Enhanced validation logic or error handling
-- ✅ Additional data sensitivity classifications
-
-### **Response Timeline:**
-- **Initial Response**: Within 2 business days
-- **Implementation**: Varies based on complexity and security review requirements
-- **Testing & Rollout**: Coordinated with requesting teams
-
-> **📝 Note**: The request process will evolve in the future as the security logging framework matures. We'll update this section with new procedures as they become available.
-
 ## 🚨 **REQUIRED: Security Logging Failure Monitoring**
 
 **⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk and compliance violation.
@@ -477,7 +447,7 @@ For comprehensive implementation examples and testing of all 14 security event t
 
 Run the test: `python3 test_publish.py`
 
-### Step 6: Use in Your Code
+### Step 7: Use in Your Code
 ```python
 # Example: Log user authentication
 result = security_logging_sns.log_user_login(
@@ -833,13 +803,9 @@ Your application's IAM role or user needs the following permission for security 
 }
 ```
 
-## 📝 Complete Function Examples
+## 📝 Key Function Examples
 
-Below are working examples for all 14 available functions with their exact parameters and expected outputs.
-
-### Authentication & Session Functions
-
-#### 1. log_user_login - User Login Success
+### User Login
 ```python
 result = security_logging_sns.log_user_login(
     event_type=EventType.LOGIN_SUCCESS,
@@ -858,136 +824,8 @@ result = security_logging_sns.log_user_login(
     detail=Detail.USER_INITIATED
 )
 ```
-**Generates:** `login_success` event with `detail: "detail.trigger.user_initiated"`
 
-#### 2. log_mfa_challenge - MFA Challenge
-```python
-result = security_logging_sns.log_mfa_challenge(
-    event_type=EventType.MFA_CHALLENGE,
-    actor_identifier="bob@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-mfa-456",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="auth-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-auth@project.iam.gserviceaccount.com",
-    user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 15_0)",
-    user_role=UserRole.SALES_REP,
-    status=Status.SUCCESS,
-    mfa_type=MfaType.SMS,
-    source_ip_address="203.0.113.25",
-    detail=Detail.USER_INITIATED
-)
-```
-**Generates:** `mfa_challenge` event with `detail: "detail.trigger.user_initiated"`
-
-#### 3. log_user_logout - User Logout
-```python
-result = security_logging_sns.log_user_logout(
-    event_type=EventType.USER_LOGOUT,
-    actor_identifier="charlie@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-logout-789",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="session-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-session@project.iam.gserviceaccount.com",
-    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    user_role=UserRole.CUSTOMER_SUPPORT,
-    status=Status.SUCCESS,
-    source_ip_address="10.0.1.45",
-    detail=Detail.SESSION_TIMEOUT
-)
-```
-**Generates:** `user_logout` event with `detail: "detail.trigger.session_timeout"`
-
-### Authorization & Access Functions
-
-#### 4. log_permission_role_change - Permission/Role Change
-```python
-result = security_logging_sns.log_permission_role_change(
-    event_type=EventType.PERMISSION_CHANGE,
-    actor_identifier="admin@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-perm",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="user-management-api",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
-    target_user_identifier="newuser@company.com",
-    object_changed="Role",
-    previous_value="Sales Rep",
-    new_value="Admin",
-    source_ip_address="10.0.1.25"
-)
-```
-**Generates:** `permission_change` event
-
-#### 5. log_user_status_change - User Status Change
-```python
-result = security_logging_sns.log_user_status_change(
-    event_type=EventType.USER_STATUS_CHANGE,
-    actor_identifier="admin@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-status",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="user-management-api",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
-    target_user_identifier="suspended@company.com",
-    detail=Detail.USER_DISABLED,
-    source_ip_address="10.0.1.25"
-)
-```
-**Generates:** `user_status_change` event with `detail: "detail.action.user_disabled"`
-
-#### 6. log_impersonation_event - User Impersonation
-```python
-result = security_logging_sns.log_impersonation_event(
-    event_type=EventType.IMPERSONATION_EVENT,
-    actor_identifier="support@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-support-impersonate",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="support-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-support@project.iam.gserviceaccount.com",
-    target_user_identifier="customer@company.com",
-    detail=Detail.IMPERSONATION_START,
-    source_ip_address="10.0.1.30"
-)
-```
-**Generates:** `impersonation_event` event with `detail: "detail.action.impersonation_start"`
-
-#### 7. log_user_invite_event - User Invitation
-```python
-result = security_logging_sns.log_user_invite_event(
-    event_type=EventType.USER_INVITE_EVENT,
-    actor_identifier="hr@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-hr-invite",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="invite-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-invite@project.iam.gserviceaccount.com",
-    target_user_email="newhire@company.com",
-    assigned_role=UserRole.SALES_REP,
-    invite_status=InviteStatus.SENT,
-    source_ip_address="10.0.1.35",
-    detail=Detail.ADMIN_INITIATED
-)
-```
-**Generates:** `user_invite_event` event with `detail: "detail.trigger.admin_initiated"`
-
-### API Endpoint Access Functions
-
-#### 8. log_api_request - API Request Processing
+### API Request
 ```python
 result = security_logging_sns.log_api_request(
     event_type=EventType.API_REQUEST_PROCESSED,
@@ -1007,134 +845,26 @@ result = security_logging_sns.log_api_request(
     source_ip_address="203.0.113.54"
 )
 ```
-**Generates:** `api_request_processed` event
 
-### Customer Data Actions Functions
-
-#### 9. log_multi_record_access - Multiple Records Access
+### Permission Change
 ```python
-result = security_logging_sns.log_multi_record_access(
-    event_type=EventType.MULTI_RECORD_ACCESS,
-    actor_identifier="analyst@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-analyst-data",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="analytics-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-analytics@project.iam.gserviceaccount.com",
-    endpoint_path="/api/v1/customers",
-    data_sensitivity_level="Confidential-PII",
-    record_count=150,
-    customer_id_list=["cust_001", "cust_002", "cust_003"],
-    detail=Detail.VIEW_LIST,
-    source_ip_address="192.168.1.200"
-)
-```
-**Generates:** `multi_record_access` event with `detail: "detail.action.view_list"`
-
-#### 10. log_single_record_access - Single Record Access
-```python
-result = security_logging_sns.log_single_record_access(
-    event_type=EventType.SINGLE_RECORD_ACCESS,
-    actor_identifier="support@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-support-record",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="customer-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-customer@project.iam.gserviceaccount.com",
-    customer_id="cust_12345",
-    fields_accessed=["email", "phone", "address"],
-    detail=Detail.VIEW_RECORD,
-    source_ip_address="10.0.1.40"
-)
-```
-**Generates:** `single_record_access` event with `detail: "detail.action.view_record"`
-
-### Key Configuration Changes Functions
-
-#### 11. log_mfa_status_change - MFA Configuration Change
-```python
-result = security_logging_sns.log_mfa_status_change(
-    event_type=EventType.MFA_STATUS_CHANGE,
+result = security_logging_sns.log_permission_change(
     actor_identifier="admin@company.com",
     actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-mfa",
+    session_id="session-admin-perm",
     cloud_env_type=CloudEnvType.PROD,
-    service_name="security-service",
+    service_name="user-management-api",
     cloud_env_unique_id="123456789012",
     cloud_env_name="prod-us-east-1",
-    service_account_id="sa-security@project.iam.gserviceaccount.com",
-    target_object="alice@company.com",
-    status=Status.SUCCESS,
-    mfa_id="mfa-device-123",
-    detail=Detail.MFA_ENABLED,
-    source_ip_address="10.0.1.50"
+    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+    target_user_identifier="newuser@company.com",
+    permission_name="Role",
+    change_type="granted",
+    source_ip_address="10.0.1.25"
 )
 ```
-**Generates:** `mfa_status_change` event with `detail: "detail.action.mfa_enabled"`
 
-#### 12. log_password_change_reset - Password Change/Reset
-```python
-result = security_logging_sns.log_password_change_reset(
-    event_type=EventType.PASSWORD_CHANGE_RESET,
-    actor_identifier="alice@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-alice-pwd",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="auth-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-auth@project.iam.gserviceaccount.com",
-    target_object="alice@company.com",
-    status=Status.SUCCESS,
-    detail=Detail.PASSWORD_CHANGE,
-    source_ip_address="192.168.1.100"
-)
-```
-**Generates:** `password_change_reset` event with `detail: "detail.action.password_change"`
-
-#### 13. log_api_key_lifecycle - API Key Management
-```python
-result = security_logging_sns.log_api_key_lifecycle(
-    event_type=EventType.API_KEY_LIFECYCLE,
-    actor_identifier="admin@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-api",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="api-management",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-api-mgmt@project.iam.gserviceaccount.com",
-    target_object="api_key_xyz123",
-    status=Status.SUCCESS,
-    detail=Detail.API_KEY_CREATED,
-    source_ip_address="10.0.1.55"
-)
-```
-**Generates:** `api_key_lifecycle` event with `detail: "detail.api_key.created"`
-
-#### 14. log_auth_mechanism_modification - Authentication Mechanism Changes
-```python
-result = security_logging_sns.log_auth_mechanism_modification(
-    event_type=EventType.AUTH_MECHANISM_MODIFICATION,
-    actor_identifier="admin@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-auth",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="auth-config-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-auth-config@project.iam.gserviceaccount.com",
-    target_object="sso_assertion_url",
-    status=Status.SUCCESS,
-    detail=Detail.NEW_SSO_PROVIDER,
-    source_ip_address="10.0.1.60"
-)
-```
-**Generates:** `auth_mechanism_modification` event with `detail: "detail.action.new_sso_provider"`
+> **📝 Note**: For complete examples of all 14 available functions, see [`test_publish.py`](test_publish.py).
 
 ## 🔑 Key Changes: Detail Field Approach
 
@@ -1325,9 +1055,8 @@ Log authentication mechanism changes.
 - `target_object` (str): The configuration object that was changed (e.g., "sso_assertion_url", "local_authentication")
 - `detail` (str): The modification type ("sso_config_created", "sso_config_modified", "sso_config_deleted", "local_auth_enabled", "local_auth_disabled")
 
-## ⚠️ Error Handling & Troubleshooting
+## ⚠️ Error Handling
 
-### Return Values
 All logging functions return a dictionary with the following structure:
 
 **Success:**
@@ -1347,66 +1076,14 @@ All logging functions return a dictionary with the following structure:
 }
 ```
 
-### Common Error Messages
-
-#### Initialization Errors
-- `"Security logging not initialized. Call init_security_logging() first."`
-  - **Solution**: Call `init_security_logging()` before using any logging functions
-
-#### Validation Errors
-- `"Required base_log fields missing: field1, field2"`
-  - **Solution**: Provide all required base_log fields with non-empty values
-
-- `"Required log_specifics fields missing for [function]: field1, field2"`
-  - **Solution**: Provide all required event-specific fields
-
-- `"Invalid [field] value 'invalid_value'. Must use standardized values..."`
-  - **Solution**: Use values from the appropriate constants in `security_log_fields.py`
-
-#### AWS/SNS Errors
-- `"Error publishing security log to SNS after retries: [AWS error]"`
-  - **Solution**: Check AWS credentials, permissions, and SNS topic existence
-
-### Best Practices
-
-#### 1. Initialize Once
-```python
-# ✅ Good - Initialize at application startup
-def app_startup():
-    security_logging_sns.init_security_logging(...)
-
-# ❌ Bad - Don't initialize on every request
-def handle_request():
-    security_logging_sns.init_security_logging(...)  # Inefficient
-```
-
-#### 2. Handle Failures Gracefully
+**Best Practices:**
 ```python
 # ✅ Good - Check result and handle failures
 result = security_logging_sns.log_user_login(...)
 if result["status"] == "failure":
-    # Log to application logs but don't crash
+    security_metrics.report_failure()  # Push CloudWatch metric
     app_logger.warning(f"Security logging failed: {result['message']}")
 
-# ❌ Bad - Assume success
-security_logging_sns.log_user_login(...)  # Ignores failures
-```
-
-#### 3. Use Test Mode for Development
-```python
-# ✅ Good - Use test mode during development
-security_logging_sns.init_security_logging(
-    test_mode=True  # No security logging, prints to console
-)
-
-# ✅ Good - Environment-based test mode
-security_logging_sns.init_security_logging(
-    test_mode=os.getenv("ENVIRONMENT") != "production"
-)
-```
-
-#### 4. Use Standardized Values
-```python
 # ✅ Good - Use constants from security_log_fields
 from security_log_fields import ActorType, UserRole, Detail
 
@@ -1415,33 +1092,13 @@ result = security_logging_sns.log_user_login(
     user_role=UserRole.ADMIN,
     detail=Detail.INVALID_CREDENTIALS
 )
-
-# ❌ Bad - Use raw strings (will fail validation)
-result = security_logging_sns.log_user_login(
-    actor_type="human",  # Invalid
-    user_role="admin",   # Invalid
-    detail="custom text"   # Should use standardized Detail constants for failures
-)
 ```
 
-#### 5. Provide Meaningful Details
-```python
-# ✅ Good - Use standardized success context
-security_logging_sns.log_user_login(
-    event_type=EventType.LOGIN_SUCCESS,
-    status=Status.SUCCESS,
-    detail=Detail.USER_INITIATED
-    # ... other required parameters
-)
-
-# ✅ Good - Use standardized failure reasons
-security_logging_sns.log_user_login(
-    event_type=EventType.LOGIN_FAILURE,
-    status=Status.FAILURE,
-    detail=Detail.ACCOUNT_LOCKED
-    # ... other required parameters
-)
-```
+**Common Issues:**
+- **Initialization**: Call `init_security_logging()` before using any logging functions
+- **Missing Fields**: Provide all required fields with non-empty values
+- **Invalid Values**: Use constants from `security_log_fields.py`
+- **AWS Errors**: Check credentials, permissions, and SNS topic existence
 
 ## 🧪 Testing & Development
 
@@ -1530,10 +1187,9 @@ pytest --cov=security_logging_sns --cov-report=html
 
 ## 📄 Sample Log Outputs
 
-This section shows the exact JSON structure that gets sent to your SNS topic for each security event type. All examples use current standardized values and schema.
+This section shows the exact JSON structure that gets sent to your SNS topic for key security event types. All examples use current standardized values and schema.
 
 ### User Login Success
-Generated by: `security_logging_sns.log_user_login(..., event_type=EventType.LOGIN_SUCCESS, status=Status.SUCCESS)`
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691207+00:00",
@@ -1558,7 +1214,6 @@ Generated by: `security_logging_sns.log_user_login(..., event_type=EventType.LOG
 ```
 
 ### User Login Failure
-Generated by: `security_logging_sns.log_user_login(..., event_type=EventType.LOGIN_FAILURE, status=Status.FAILURE)`
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691761+00:00",
@@ -1582,59 +1237,7 @@ Generated by: `security_logging_sns.log_user_login(..., event_type=EventType.LOG
 }
 ```
 
-### MFA Challenge Success
-Generated by: `security_logging_sns.log_mfa_challenge(..., status=Status.SUCCESS)`
-```json
-{
-  "timestamp": "2025-09-09T20:37:47.561901+00:00",
-  "event_type": "authn.mfa.challenge_success",
-  "log_category": "authn_n_session",
-  "status": "status.general.success",
-  "actor_identifier": "alice@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-mfa-123",
-  "cloud_env_type": "prod",
-  "service_name": "auth-service",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-auth@project.iam.gserviceaccount.com",
-  "source_ip_address": "192.168.1.100",
-  "cloud_service_api_type": "",
-  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-  "user_role": "role.classification.admin",
-  "detail": "detail.not_applicable",
-  "mfa_type": "totp",
-  "device_id": ""
-}
-```
-
-### User Logout
-Generated by: `security_logging_sns.log_user_logout(...)`
-```json
-{
-  "timestamp": "2025-09-09T20:38:18.128257+00:00",
-  "event_type": "authn.logout.user_initiated",
-  "log_category": "authn_n_session",
-  "status": "status.general.success",
-  "actor_identifier": "alice@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-xyz789",
-  "cloud_env_type": "prod",
-  "service_name": "user-management-api",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
-  "source_ip_address": "192.168.1.100",
-  "cloud_service_api_type": "aws_lambda",
-  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-  "user_role": "role.classification.admin",
-  "detail": "detail.trigger.user_initiated",
-  "device_id": ""
-}
-```
-
 ### API Request Success
-Generated by: `security_logging_sns.log_api_request_processed(..., status=Status.SUCCESS)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.728000+00:00",
@@ -1660,7 +1263,6 @@ Generated by: `security_logging_sns.log_api_request_processed(..., status=Status
 ```
 
 ### Permission Change (Role Assignment)
-Generated by: `security_logging_sns.log_permission_change(...)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.729000+00:00",
@@ -1683,33 +1285,7 @@ Generated by: `security_logging_sns.log_permission_change(...)`
 }
 ```
 
-### User Invite Event
-Generated by: `security_logging_sns.log_user_invite_event(...)`
-```json
-{
-  "timestamp": "2025-09-09T19:39:11.730000+00:00",
-  "event_type": "authz.invite.sent",
-  "log_category": "authz_n_access",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-789",
-  "cloud_env_type": "prod",
-  "service_name": "user-management-api",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
-  "source_ip_address": "",
-  "cloud_service_api_type": "",
-  "target_user_email": "newuser@company.com",
-  "assigned_role": "developer",
-  "invite_status": "sent",
-  "detail": "detail.trigger.admin_initiated"
-}
-```
-
 ### Single Customer Record Access
-Generated by: `security_logging_sns.log_single_record_access(...)`
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.731000+00:00",
@@ -1732,77 +1308,7 @@ Generated by: `security_logging_sns.log_single_record_access(...)`
 }
 ```
 
-### API Key Creation
-Generated by: `security_logging_sns.log_api_key_lifecycle(..., detail=Detail.API_KEY_CREATED)`
-```json
-{
-  "timestamp": "2025-09-09T19:39:11.732000+00:00",
-  "event_type": "api_key.created",
-  "log_category": "key_config_changes",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-789",
-  "cloud_env_type": "prod",
-  "service_name": "api-management",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-api-mgmt@project.iam.gserviceaccount.com",
-  "source_ip_address": "",
-  "cloud_service_api_type": "",
-  "target_object": "api-key-abc123",
-  "detail": "detail.api_key.created"
-}
-```
-
-### User Status Change
-Generated by: `security_logging_sns.log_user_status_change(...)`
-```json
-{
-  "timestamp": "2025-09-09T22:55:22.444138+00:00",
-  "event_type": "authz.user.status_enabled",
-  "log_category": "authz_n_access",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-456",
-  "cloud_env_type": "prod",
-  "service_name": "user-management",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-user-mgmt@project.iam.gserviceaccount.com",
-  "source_ip_address": "10.0.1.100",
-  "cloud_service_api_type": "aws_lambda",
-  "target_user_identifier": "alice@company.com",
-  "detail": "detail.trigger.admin_initiated"
-}
-```
-
-### Impersonation Event
-Generated by: `security_logging_sns.log_impersonation_event(...)`
-```json
-{
-  "timestamp": "2025-09-09T22:55:22.444453+00:00",
-  "event_type": "authz.impersonation.start",
-  "log_category": "authz_n_access",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-789",
-  "cloud_env_type": "prod",
-  "service_name": "admin-portal",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-admin@project.iam.gserviceaccount.com",
-  "source_ip_address": "10.0.1.200",
-  "cloud_service_api_type": "aws_lambda",
-  "target_user_identifier": "alice@company.com",
-  "detail": "detail.trigger.admin_initiated"
-}
-```
-
 ### Multi-Record Data Access
-Generated by: `security_logging_sns.log_multi_record_access(...)`
 ```json
 {
   "timestamp": "2025-09-09T22:55:22.444596+00:00",
@@ -1827,170 +1333,37 @@ Generated by: `security_logging_sns.log_multi_record_access(...)`
 }
 ```
 
-### MFA Status Change
-Generated by: `security_logging_sns.log_mfa_status_change(...)`
-```json
-{
-  "timestamp": "2025-09-09T22:55:38.929515+00:00",
-  "event_type": "authn.mfa.status_enabled",
-  "log_category": "key_config_changes",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-security",
-  "cloud_env_type": "prod",
-  "service_name": "security-service",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-security@project.iam.gserviceaccount.com",
-  "source_ip_address": "10.0.1.50",
-  "cloud_service_api_type": "aws_lambda",
-  "target_object": "alice@company.com",
-  "mfa_id": "mfa-device-123",
-  "detail": "detail.trigger.admin_initiated"
-}
-```
+> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`test_publish.py`](test_publish.py).
 
-### Password Change
-Generated by: `security_logging_sns.log_password_change_reset(...)`
-```json
-{
-  "timestamp": "2025-09-09T22:55:38.929764+00:00",
-  "event_type": "authn.password.change",
-  "log_category": "key_config_changes",
-  "status": "status.general.success",
-  "actor_identifier": "alice@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-alice-pwd",
-  "cloud_env_type": "prod",
-  "service_name": "auth-service",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-auth@project.iam.gserviceaccount.com",
-  "source_ip_address": "192.168.1.100",
-  "cloud_service_api_type": "aws_lambda",
-  "target_object": "alice@company.com",
-  "detail": "detail.trigger.user_initiated"
-}
-```
+## 🚀 **Requesting New Features & Field Values**
 
-### Auth Mechanism Modification
-Generated by: `security_logging_sns.log_auth_mechanism_modification(...)`
-```json
-{
-  "timestamp": "2025-09-09T22:55:38.929859+00:00",
-  "event_type": "authn.sso.config_created",
-  "log_category": "key_config_changes",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-config",
-  "cloud_env_type": "prod",
-  "service_name": "auth-config-service",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-auth-config@project.iam.gserviceaccount.com",
-  "source_ip_address": "10.0.1.25",
-  "cloud_service_api_type": "aws_lambda",
-  "target_object": "sso_assertion_url",
-  "detail": "detail.auth.sso_config_created"
-}
-```
+If you need additional event types, field values, or functionality that isn't currently supported in the security logging framework, you can request enhancements:
 
-> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting.
+### **Current Process:**
+📧 **Contact the Security Logging Team:**
+- **Raul Reutov**: [raul.reutov@sunrun.com](mailto:raul.reutov@sunrun.com)
+- **Jeffory Shields**: [jeffory.shields@sunrun.com](mailto:jeffory.shields@sunrun.com)
 
-## 📊 **Standardized Values Reference**
+### **What to Include in Your Request:**
+1. **🎯 Business Justification**: Why is this new field/event type needed?
+2. **📋 Technical Details**: Specific field names, values, or event types required
+3. **🔍 Use Case Description**: How will this be used in your application?
+4. **⏰ Timeline**: When do you need this implemented?
+5. **📊 Impact Assessment**: How many applications/teams will benefit from this change?
 
-This section provides the complete list of standardized values for all fields to ensure consistency across your security logs.
+### **Types of Requests We Support:**
+- ✅ New event types for emerging security use cases
+- ✅ Additional standardized field values (e.g., new user roles, detail values)
+- ✅ New authentication protocols or MFA types
+- ✅ Enhanced validation logic or error handling
+- ✅ Additional data sensitivity classifications
 
-### Event Types by Category
+### **Response Timeline:**
+- **Initial Response**: Within 2 business days
+- **Implementation**: Varies based on complexity and security review requirements
+- **Testing & Rollout**: Coordinated with requesting teams
 
-#### Authentication & Session
-- `authn.login.success`, `authn.login.failure`
-- `authn.logout.user_initiated`, `authn.logout.session_timeout`, `authn.logout.admin_initiated`
-- `authn.mfa.challenge_success`, `authn.mfa.challenge_failure`
-- `authn.password.change`, `authn.password.reset`
-- `authn.mfa.status_enabled`, `authn.mfa.status_disabled`, `authn.mfa.device_added`, `authn.mfa.device_removed`
-- `authn.sso.config_created`, `authn.sso.config_modified`, `authn.sso.config_deleted`
-- `authn.local_auth.config_enabled`, `authn.local_auth.config_disabled`
-
-#### Authorization & Access
-- `authz.permission.grant`, `authz.permission.revoke`
-- `authz.role.assign`, `authz.role.unassign`
-- `authz.group_membership.add`, `authz.group_membership.remove`
-- `authz.user.status_enabled`, `authz.user.status_disabled`, `authz.user.status_deleted`, `authz.user.status_locked`, `authz.user.status_unlocked`
-- `authz.impersonation.start`, `authz.impersonation.stop`
-- `authz.invite.sent`, `authz.invite.accepted`, `authz.invite.revoked`, `authz.invite.expired`
-
-#### Customer Data Actions
-- `data.customer.record.view`, `data.customer.record.modify`
-- `data.customer.list.view`, `data.customer.list.modify`
-- `data.report.export`, `data.report.download`
-
-#### API Endpoint Access
-- `api.request.success`, `api.request.failure`
-
-#### Key Configuration Changes
-- `api_key.created`, `api_key.revoked`, `api_key.permissions_modified`
-
-### Status Values
-- `status.general.success`
-- `status.general.failure`
-
-### Actor Types
-- `actor.human.internal`, `actor.human.partner`, `actor.human.customer`
-- `actor.service.internal`, `actor.service.partner`, `actor.service.customer`
-- `actor.system.self`
-
-### MFA Types
-- `sms`, `totp`, `push`, `email`
-- `okta_verify`, `authenticator_app`, `hardware_token`
-- `biometric`, `backup_codes`
-
-### Authentication Protocols
-- `auth.protocol.api_key`, `auth.protocol.oauth2.jwt`, `auth.protocol.oauth2.client_credentials`
-- `auth.protocol.oauth2.authorization_code`, `auth.protocol.oauth2.implicit`, `auth.protocol.oauth2.password_grant`
-- `auth.protocol.saml`, `auth.protocol.oidc`, `auth.protocol.session_cookie`
-- `auth.protocol.m2m_token`, `auth.protocol.none`
-
-### HTTP Methods
-- `http.method.GET`, `http.method.POST`, `http.method.PUT`, `http.method.PATCH`
-- `http.method.DELETE`, `http.method.HEAD`, `http.method.OPTIONS`
-
-### Sensitivity Levels (Data & Endpoints)
-- `sensitivity.level.public`, `sensitivity.level.internal`, `sensitivity.level.confidential`
-- `sensitivity.level.pii_basic`, `sensitivity.level.pii_financial`, `sensitivity.level.pii_health`
-- `sensitivity.level.credential_management`, `sensitivity.level.system_admin`, `sensitivity.level.authentication`
-
-### Detail Field Values
-
-The `detail` field provides context for events and uses these standardized values:
-
-#### Authentication & Session - Failure Focus at Login
-- `detail.auth.invalid_credentials`, `detail.auth.account_locked`, `detail.auth.ip_restricted`
-- `detail.auth.mfa_required`, `detail.auth.policy_violation`, `detail.auth.captcha_failure`
-- `detail.auth.token_expired`, `detail.auth.token_invalid`, `detail.auth.unauthorized_access`
-- `detail.auth.rate_limit_exceeded`
-
-#### Action/Status Change Triggers (Generic)
-- `detail.trigger.user_initiated`, `detail.trigger.admin_initiated`, `detail.trigger.system_automated`
-- `detail.trigger.system_policy_violation`, `detail.trigger.session_timeout`, `detail.trigger.concurrent_session`
-- `detail.trigger.failed_attempts_threshold`
-
-#### General System/Operational (Generic)
-- `detail.system.internal_error`, `detail.system.service_unavailable`, `detail.system.maintenance`
-- `detail.client.invalid_request`, `detail.not_applicable`
-
-#### API Key Lifecycle Actions
-- `detail.api_key.created`, `detail.api_key.revoked`, `detail.api_key.permissions_modified`
-
-#### Auth Mechanism Modification Types
-- `detail.auth.sso_config_created`, `detail.auth.sso_config_modified`, `detail.auth.sso_config_deleted`
-- `detail.auth.local_auth_enabled`, `detail.auth.local_auth_disabled`
-
-### User Roles (Examples - Replace with Your System's Roles)
-- `role.classification.admin`, `role.classification.sales_rep`, `role.classification.customer_support`
-- `role.classification.partner_admin`, `role.classification.customer_user`
+> **📝 Note**: The request process will evolve in the future as the security logging framework matures. We'll update this section with new procedures as they become available.
 
 ---
 
@@ -2024,86 +1397,36 @@ For internal support and questions:
 
 ## 📚 Appendix: Why We Don't Extract Base Logs from React Logs
 
-### **The Problem with React Log Extraction**
-
-While it might seem efficient to extract security events from existing React application logs, this approach creates significant challenges that outweigh any potential benefits:
+While it might seem efficient to extract security events from existing React application logs, this approach creates significant challenges:
 
 ### **🚫 Key Issues with React Log Extraction:**
 
-#### **1. Lack of Uniformity Across Applications**
-- **Inconsistent Formats**: Each React application uses different logging libraries, formats, and conventions
-- **Custom Implementations**: Teams implement their own logging patterns without standardization
-- **Framework Variations**: Different React frameworks (Next.js, Create React App, Gatsby) produce different log structures
-- **Developer Preferences**: Individual developers use varying log levels, message formats, and data structures
+1. **Lack of Uniformity**: Each React application uses different logging libraries, formats, and conventions
+2. **Processing Overhead**: Would require sophisticated parsing logic for each application's unique log format
+3. **Security Risks**: React logs rarely contain all required security logging fields
+4. **Data Integrity**: Important security context may be lost during extraction
+5. **Maintenance Burden**: Each application change could break the extraction logic
 
-#### **2. Extensive Processing Overhead**
-- **Complex Parsing**: Would require sophisticated parsing logic for each application's unique log format
-- **Data Normalization**: Extensive transformation needed to convert varied formats into standardized security logs
-- **Maintenance Burden**: Each application change could break the extraction logic
-- **Performance Impact**: Real-time log processing would add significant latency and resource consumption
-
-#### **3. Security and Compliance Risks**
-- **Missing Critical Fields**: React logs rarely contain all required security logging fields
-- **Inconsistent Data Quality**: Application logs may have incomplete, truncated, or malformed data
-- **Audit Trail Gaps**: No guarantee that all security events are captured in application logs
-- **Compliance Failures**: Extracted logs may not meet audit and compliance requirements for completeness
-
-#### **4. Technical Challenges**
 ```javascript
-// Example of inconsistent React logging patterns across applications:
+// Example of inconsistent React logging patterns:
 
 // Application A - Custom logger
 logger.info(`User ${userId} accessed ${resource}`, { timestamp: Date.now() });
 
-// Application B - Console logging
+// Application B - Console logging  
 console.log('LOGIN:', user.email, 'SUCCESS', new Date().toISOString());
 
 // Application C - Structured logging
 log.event('user.login', { user: user.id, status: 'success', ip: req.ip });
-
-// Application D - Debug-focused logging
-debug('Auth flow completed for %s with role %s', email, role);
 ```
-
-Each format would require different extraction logic, making maintenance extremely complex.
-
-#### **5. Data Integrity Concerns**
-- **Lost Context**: Important security context may be lost during extraction
-- **Timing Issues**: Log timestamps may not accurately reflect when security events occurred
-- **Incomplete Events**: Multi-step security processes may be logged across multiple, disconnected log entries
-- **State Dependencies**: Security events often depend on application state not captured in logs
 
 ### **✅ Why Direct Security Logging is Superior**
 
-#### **Standardized Implementation**
 - **Consistent Schema**: Every security event follows the same standardized structure
 - **Required Fields**: All mandatory security fields are guaranteed to be present
-- **Validation**: Built-in validation ensures data quality and completeness
+- **Real-Time Delivery**: Security events are sent directly to monitoring systems
 - **Compliance Ready**: Meets audit and regulatory requirements out of the box
-
-#### **Real-Time Security Monitoring**
-- **Immediate Delivery**: Security events are sent directly to monitoring systems
-- **No Processing Delays**: No intermediate extraction or transformation steps
-- **Guaranteed Delivery**: Built-in retry logic ensures critical security events aren't lost
-- **Structured Data**: Security teams receive properly formatted, queryable data
-
-#### **Maintenance Efficiency**
 - **Single Integration**: One-time implementation per application
-- **Version Stability**: Security logging API remains consistent across updates
-- **Centralized Updates**: Framework improvements benefit all applications automatically
-- **Reduced Complexity**: No custom extraction logic to maintain per application
-
-### **📊 Comparison: Direct vs. Extracted Logging**
-
-| Aspect | Direct Security Logging | React Log Extraction |
-|--------|------------------------|---------------------|
-| **Implementation Effort** | One-time integration | Custom extraction per app |
-| **Data Consistency** | ✅ Guaranteed standardized | ❌ Varies by application |
-| **Maintenance** | ✅ Minimal ongoing work | ❌ Continuous updates needed |
-| **Compliance** | ✅ Audit-ready | ❌ May fail compliance checks |
-| **Performance** | ✅ Optimized for security | ❌ Processing overhead |
-| **Reliability** | ✅ Built-in error handling | ❌ Extraction can fail |
-| **Security Team Experience** | ✅ Consistent, queryable data | ❌ Inconsistent formats |
 
 ### **🎯 Recommendation**
 
