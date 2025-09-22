@@ -63,7 +63,17 @@ except Exception as e:
     logging.getLogger(__name__).warning(f"Failed to initialize security logging: {e}")
 ```
 
-### Step 5: Use in Your Code
+### Step 5: Testing and Implementation Help
+For comprehensive implementation examples and testing of all 14 security event types, see [`test_publish.py`](test_publish.py). This test file demonstrates:
+- ✅ Proper usage of all security logging functions
+- ✅ Required field validation and examples  
+- ✅ Realistic test data with proper constants
+- ✅ Complete integration patterns
+- ✅ End-to-end SNS publishing verification
+
+Run the test: `python3 test_publish.py`
+
+### Step 6: Use in Your Code
 ```python
 # Example: Log user authentication
 result = security_logging_sns.log_user_login(
@@ -411,7 +421,7 @@ Your application's IAM role or user needs the following permission for security 
             "Action": [
                 "sns:Publish"
             ],
-            "Resource": "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev"
+            "Resource": "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
         }
     ]
 }

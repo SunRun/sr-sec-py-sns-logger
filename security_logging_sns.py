@@ -25,7 +25,7 @@ def init_security_logging(topic_arn: str = None, region_name: str = None, test_m
     global _sns_publisher
     
     # Default production ARN and region
-    DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev"
+    DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
     DEFAULT_REGION = "us-west-2"
     
     if topic_arn is None:
