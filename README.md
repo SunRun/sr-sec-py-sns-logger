@@ -81,12 +81,7 @@ Without proper security logging, organizations operate blind to internal threats
 
 **⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk and compliance violation.
 
-### Why Monitoring is Required
-
-1. **Security Blind Spots**: Failed security logs create gaps in security monitoring
-2. **Compliance Risk**: Missing security logs can violate audit and compliance requirements  
-3. **Incident Response**: Security teams need to know immediately when logging fails
-4. **Data Integrity**: Ensures complete security event coverage for forensics
+**Why Required:** Failed security logs create gaps in monitoring, violate compliance, and impact incident response.
 
 ### Quick Implementation Guide
 
@@ -518,137 +513,7 @@ print(result)  # {'status': 'success', 'message_content': '...'}
 ```
 
 ### Complete Working Example
-```python
-#!/usr/bin/env python3
-"""
-Example: Complete security logging implementation
-This shows how to integrate security logging into a real application.
-"""
-
-import os
-import security_logging_sns
-from security_log_fields import *
-
-def initialize_logging():
-    """Initialize security logging - call once at app startup."""
-    try:
-        # Production initialization
-        security_logging_sns.init_security_logging()
-        print("✅ Security logging initialized")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to initialize security logging: {e}")
-        return False
-
-def authenticate_user(username, password, request_info):
-    """Example authentication function with security logging."""
-    
-    # Simulate authentication logic
-    if username == "admin@company.com" and password == "correct":
-        # Log successful authentication
-        result = security_logging_sns.log_user_login(
-            event_type=EventType.LOGIN_SUCCESS,
-            actor_identifier=username,
-            actor_type=ActorType.HUMAN_INTERNAL,
-            session_id=request_info["session_id"],
-            cloud_env_type=CloudEnvType.PROD,
-            service_name="auth-service",
-            cloud_env_unique_id="123456789012",
-            cloud_env_name="production",
-            service_account_id="sa-auth@company.iam.gserviceaccount.com",
-            source_ip_address=request_info["client_ip"],
-            user_agent=request_info["user_agent"],
-            user_role=UserRole.ADMIN,
-            status=Status.SUCCESS,
-            detail=Detail.USER_INITIATED
-        )
-        
-        if result["status"] == "failure":
-            print(f"⚠️  Failed to log successful auth: {result['message']}")
-        
-        return {"success": True, "user_role": "admin"}
-    
-    else:
-        # Log failed authentication
-        result = security_logging_sns.log_user_login(
-            event_type=EventType.LOGIN_FAILURE,
-            actor_identifier=username,
-            actor_type=ActorType.HUMAN_INTERNAL,
-            session_id=request_info["session_id"],
-            cloud_env_type=CloudEnvType.PROD,
-            service_name="auth-service",
-            cloud_env_unique_id="123456789012",
-            cloud_env_name="production",
-            service_account_id="sa-auth@company.iam.gserviceaccount.com",
-            source_ip_address=request_info["client_ip"],
-            user_agent=request_info["user_agent"],
-            user_role=UserRole.ADMIN,  # Attempted role
-            status=Status.FAILURE,
-            detail=Detail.INVALID_CREDENTIALS
-        )
-        
-        if result["status"] == "failure":
-            print(f"⚠️  Failed to log failed auth: {result['message']}")
-        
-        return {"success": False, "error": "Invalid credentials"}
-
-def grant_permission(admin_user, target_user, permission):
-    """Example permission change with security logging."""
-    
-    result = security_logging_sns.log_permission_change(
-        actor_identifier=admin_user["email"],
-        actor_type=ActorType.HUMAN_INTERNAL,
-        session_id=admin_user["session_id"],
-        cloud_env_type=CloudEnvType.PROD,
-        service_name="user-management",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="production",
-        service_account_id="sa-mgmt@company.iam.gserviceaccount.com",
-        target_user_identifier=target_user["email"],
-        permission_name=permission,
-        change_type="granted",
-        detail=Detail.ADMIN_INITIATED
-    )
-    
-    if result["status"] == "failure":
-        print(f"⚠️  Failed to log permission change: {result['message']}")
-        return False
-    
-    print(f"✅ Permission '{permission}' granted to {target_user['email']}")
-    return True
-
-def main():
-    """Example application main function."""
-    
-    # Initialize logging
-    if not initialize_logging():
-        return 1
-    
-    # Simulate request data
-    request_info = {
-        "session_id": "sess-abc123",
-        "client_ip": "192.168.1.100",
-        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    
-    # Test authentication
-    auth_result = authenticate_user("admin@company.com", "correct", request_info)
-    
-    if auth_result["success"]:
-        # Test permission granting
-        admin_user = {
-            "email": "admin@company.com",
-            "session_id": request_info["session_id"]
-        }
-        target_user = {"email": "user@company.com"}
-        
-        grant_permission(admin_user, target_user, "read_customer_data")
-    
-    return 0
-
-if __name__ == "__main__":
-    exit(main())
-```
+For a comprehensive end-to-end example showing authentication, permission changes, and error handling, see [`test_publish.py`](test_publish.py).
 
 ## 🚀 Getting Started
 ### Step 1: No Configuration Required
@@ -880,180 +745,40 @@ result = security_logging_sns.log_permission_change(
 
 All detail values are automatically formatted as standardized strings (e.g., `Detail.USER_DISABLED` becomes `"detail.action.user_disabled"`).
 
-## 📚 Complete API Reference
+## 📚 API Reference
 
-### Initialization Function
+### Available Functions
+The library provides 14 security logging functions covering:
+- **Authentication & Session**: `log_user_login()`, `log_mfa_challenge()`, `log_user_logout()`
+- **Authorization & Access**: `log_permission_change()`, `log_user_status_change()`, `log_impersonation_event()`, `log_user_invite_event()`
+- **API & Data Access**: `log_api_request()`, `log_multi_record_access()`, `log_single_record_access()`
+- **Key Management**: `log_mfa_status_change()`, `log_password_change_reset()`, `log_api_key_lifecycle()`, `log_auth_mechanism_modification()`
 
-#### `init_security_logging(topic_arn=None, region_name=None, test_mode=False)`
-Initialize the security logging module. **Call this once at application startup.**
-
-**Parameters:**
-- `test_mode` (bool, optional): Enable test mode for development (prints to console instead of security logging)
-
-**Raises:**
-- `Exception`: If security logging system initialization fails
-
-**Examples:**
+### Function Signature
+All functions follow this pattern:
 ```python
-# Production - ready to use
-security_logging_sns.init_security_logging()
-
-# Development/Testing only
-security_logging_sns.init_security_logging(test_mode=True)
+def log_function_name(
+    # Base log parameters (required for all functions)
+    actor_identifier="",
+    actor_type="", 
+    session_id="",
+    cloud_env_type="",
+    service_name="",
+    cloud_env_unique_id="",
+    cloud_env_name="",
+    service_account_id="",
+    # Event-specific parameters (vary by function)
+    # Optional parameters
+    source_ip_address="",
+    detail=""
+):
+    return {"status": "success|failure", "message": "..."}
 ```
 
-### Authentication & Session Functions
-
-#### `log_user_login(...)`
-Log user authentication attempts (successful or failed).
-
-**Required Parameters:**
-- All base_log parameters
-- `event_type` (str): "login_success" or "login_failure" from `EventType` constants
-- `status` (str): "status.general.success" or "status.general.failure" from `Status` constants
-- `user_agent` (str): Browser/device info
-- `user_role` (str): User role from `UserRole` constants
-
-**Optional Parameters:**
-- `detail` (str): Context for success/failure (e.g., "1st time login", "invalid_credentials")
-- `device_id` (str): Unique device identifier
-
-**Returns:** `dict` with `status` ("success" or "failure") and optional `message`
-
-#### `log_mfa_challenge(...)`
-Log MFA challenge events.
-
-**Required Parameters:**
-- All base_log parameters
-- `event_type` (str): "mfa_challenge" from `EventType` constants
-- `status` (str): "status.general.success" or "status.general.failure" from `Status` constants
-- `user_agent` (str): Browser/device info
-- `user_role` (str): User role from `UserRole` constants
-- `mfa_type` (str): MFA method from `MfaType` constants
-
-**Optional Parameters:**
-- `detail` (str): Context for success/failure
-- `device_id` (str): Unique device identifier
-
-#### `log_user_logout(...)`
-Log user logout events.
-
-**Required Parameters:**
-- All base_log parameters
-- `event_type` (str): "user_logout" from `EventType` constants
-- `status` (str): "status.general.success" or "status.general.failure" from `Status` constants
-- `user_agent` (str): Browser/device info
-- `user_role` (str): User role from `UserRole` constants
-
-**Optional Parameters:**
-- `detail` (str): Why the logout occurred (e.g., "timeout", "user_initiated", "concurrent_session")
-- `device_id` (str): Unique device identifier
-
-### Authorization & Access Functions
-
-#### `log_permission_change(...)`
-Log permission grants/revokes and role assignments.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_identifier` (str): Target user identifier
-- `permission_name` (str): Permission or role name
-- `change_type` (str): "granted" or "revoked"
-
-#### `log_user_status_change(...)`
-Log user account status changes (enabled/disabled/deleted/locked/unlocked).
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_identifier` (str): Target user identifier
-- `status_change` (str): Status change type
-
-#### `log_impersonation_event(...)`
-Log user impersonation start/stop events.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_identifier` (str): User being impersonated
-
-**Optional Parameters:**
-- `detail` (str): Additional context for the impersonation event
-
-#### `log_user_invite_event(...)`
-Log user invitation events.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_email` (str): Invited user's email
-- `assigned_role` (str): Role assigned in invitation
-- `invite_status` (str): Status from `InviteStatus` constants
-
-**Optional Parameters:**
-- `detail` (str): Additional context for the invite event
-
-### API & Data Access Functions
-
-#### `log_api_request_processed(...)`
-Log API endpoint access attempts.
-
-**Required Parameters:**
-- All base_log parameters
-- `auth_protocol` (str): Authentication protocol from `AuthProtocol` constants
-- `endpoint_path` (str): API endpoint path
-- `http_method` (str): HTTP method from `HttpMethod` constants
-- `endpoint_sensitivity` (str): Sensitivity level from `EndpointSensitivity` constants
-
-**Optional Parameters:**
-- `detail` (str): Detail for the API request failure (if applicable)
-
-#### `log_multi_record_access(...)` / `log_single_record_access(...)`
-Log customer data access events.
-
-**Required Parameters:**
-- All base_log parameters
-- `data_type` (str): Type of data accessed
-- `access_successful` (bool): Whether access succeeded
-
-### Key Management Functions
-
-#### `log_key_configuration_change(...)`
-Log API key lifecycle events.
-
-**Required Parameters:**
-- All base_log parameters
-- `key_identifier` (str): Key identifier
-- `configuration_change_type` (str): Change type ("created", "revoked", "modified")
-
-#### `log_mfa_status_change(...)`
-Log MFA configuration changes.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_identifier` (str): Target user
-- `mfa_change_type` (str): Change type ("enabled", "disabled", "device_added", "device_removed")
-
-#### `log_password_change_reset(...)`
-Log password change/reset events.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_user_identifier` (str): Target user
-- `password_action` (str): Action type ("change" or "reset")
-
-#### `log_api_key_lifecycle(...)`
-Log API key management events.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_object` (str): The API Client ID or key that was affected
-- `detail` (str): The lifecycle action ("created", "revoked", "permissions_modified")
-
-#### `log_auth_mechanism_modification(...)`
-Log authentication mechanism changes.
-
-**Required Parameters:**
-- All base_log parameters
-- `target_object` (str): The configuration object that was changed (e.g., "sso_assertion_url", "local_authentication")
-- `detail` (str): The modification type ("sso_config_created", "sso_config_modified", "sso_config_deleted", "local_auth_enabled", "local_auth_disabled")
+**For detailed parameter lists and examples, see:**
+- Function examples above
+- [`test_publish.py`](test_publish.py) for complete usage
+- [`security_log_fields.py`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py) for field definitions
 
 ## ⚠️ Error Handling
 
@@ -1102,41 +827,14 @@ result = security_logging_sns.log_user_login(
 
 ## 🧪 Testing & Development
 
-The module includes essential testing organized in the `test/` directory:
-
-### Test Structure
-```
-test/
-├── test_security_logging.py      # Core unit tests
-├── run_tests.py                  # Test runner
-├── pytest.ini                   # Pytest configuration
-└── requirements-test.txt         # Test dependencies
-```
-
 ### Running Tests
-
-#### **Unit Tests** 🔬
-Test core functionality in test mode (no AWS credentials required):
 ```bash
+# Unit tests (no AWS credentials required)
 cd test/
 python3 -m unittest test_security_logging -v
-```
 
-#### **Run All Tests**
-```bash
-cd test/
-python3 run_tests.py
-```
-
-### Install Testing Dependencies
-```bash
-pip install -r test/requirements-test.txt
-```
-
-### Run Tests with Coverage (using pytest)
-```bash
-cd test/
-pytest --cov=../security_logging_sns --cov=../security_log_fields --cov-report=html
+# End-to-end testing with examples
+python3 test_publish.py
 ```
 
 ### Test Coverage
@@ -1145,45 +843,13 @@ The unit tests cover:
 - ✅ **Initialization**: Proper setup in test mode
 - ✅ **Error Handling**: Missing fields and invalid values handled gracefully
 - ✅ **Validation**: Standardized field validation
-- ✅ **Test Mode**: Functions work without AWS credentials
 
-### Development Setup
+## Dependencies
+Ensure you have the boto3 library installed in your Python environment.
+
 ```bash
-# Install development dependencies
-pip install -r test/requirements-test.txt
-
-# Run all tests
-python3 test/run_tests.py
-
-# Run tests with coverage
-pytest --cov=security_logging_sns --cov-report=html
+pip install boto3
 ```
-
-## 🏗️ Module Structure
-
-### Files Overview
-
-| File | Purpose | Key Contents |
-|------|---------|--------------|
-| `security_logging_sns.py` | Main logging module | All logging functions, validation, base log creation |
-| `security_log_fields.py` | Standardized constants | Event types, status values, actor types, etc. |
-| `sns_publisher.py` | AWS SNS integration | SNS client, message publishing, retry logic |
-| **`test/`** | **Testing directory** | **Essential test files** |
-| `test/test_security_logging.py` | Unit tests | Core functionality tests for all logging functions |
-| `test/run_tests.py` | Test runner | Unified test execution script |
-| `test/pytest.ini` | Pytest config | Test configuration and settings |
-| `test/requirements-test.txt` | Test dependencies | Testing-specific package requirements |
-
-### Dependencies
-
-- **`boto3`**: AWS SDK for Python (SNS publishing)
-- **`pytest`**: Testing framework (development only)
-- **`pytest-cov`**: Test coverage reporting (development only)
-
-### Python Version Compatibility
-- **Minimum**: Python 3.7+
-- **Recommended**: Python 3.9+
-- **Tested**: Python 3.8, 3.9, 3.10, 3.11
 
 ## 📄 Sample Log Outputs
 
