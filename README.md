@@ -42,11 +42,8 @@ Add SNS permissions to your application's IAM role:
 {
   Effect = "Allow"
   Action = [
-    "kms:Encrypt",
-    "kms:Decrypt", 
-    "kms:ReEncrypt*",
-    "kms:GenerateDataKey*",
-    "kms:DescribeKey"
+    "kms:GenerateDataKey",
+    "kms:Decrypt"
   ]
   Resource = "arn:aws:kms:${var.aws_region}:YOUR_SECURITY_ACCOUNT_ID:key/*"
 }
@@ -63,7 +60,105 @@ except Exception as e:
     logging.getLogger(__name__).warning(f"Failed to initialize security logging: {e}")
 ```
 
-### Step 5: Testing and Implementation Help
+### Step 5: GitHub Actions Setup
+For Python repositories that use this library as a submodule, add this workflow to `.github/workflows/main.yml`:
+
+```yaml
+name: Security Logger CI/CD
+
+on:
+  pull_request:
+    branches: [ master, develop ]
+  push:
+    branches: [ master, develop ]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  build-lambda:
+    name: Build Lambda Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+        with:
+          submodules: recursive
+          token: ${{ secrets.SECURITY_GITHUB_ACTION_PACKAGES }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: '3.12'
+
+      # Generate a cache key based on the hash of dependencies and source files
+      - name: Generate cache key
+        id: generate-key
+        run: |
+          # The key will change if requirements.lock or any .py file changes
+          key="lambda-build-${{ runner.os }}-py3.12-$(sha256sum src/lambda/uar-perm-ingest/requirements.lock $(find src/lambda/uar-perm-ingest -name '*.py') | awk '{print $1}' | sha256sum | head -c 32)"
+          echo "key=${key}" >> $GITHUB_OUTPUT
+        shell: bash
+
+      # Use the cache action to restore the built package if it exists
+      - name: Cache Lambda package
+        id: cache-lambda
+        uses: actions/cache@v4
+        with:
+          path: dist/
+          key: ${{ steps.generate-key.outputs.key }}
+
+      # The build step now ONLY runs if the cache was not found
+      - name: Build Lambda package
+        if: steps.cache-lambda.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss. Building Lambda package using Docker..."
+          cd src/lambda/uar-perm-ingest
+          python build.py
+        shell: bash
+
+      - name: Upload Lambda package artifacts
+        uses: actions/upload-artifact@v4.3.3
+        with:
+          name: lambda-package
+          path: dist/
+
+  terraform-dev:
+    needs: build-lambda
+    if: github.ref == 'refs/heads/develop' || (github.event_name == 'pull_request' && github.base_ref == 'develop')
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      working-directory: env/dev/uar-perm-ingest
+      environment: dev
+      component-name: UAR Perm Ingest
+      download-artifact: true
+      artifact-name: lambda-package
+      artifact-path: dist/
+    secrets: inherit
+
+  terraform-prod:
+    needs: build-lambda
+    if: github.ref == 'refs/heads/master' || (github.event_name == 'pull_request' && github.base_ref == 'master')
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      working-directory: env/prod/uar-perm-ingest
+      environment: prod
+      component-name: UAR Perm Ingest
+      download-artifact: true
+      artifact-name: lambda-package
+      artifact-path: dist/
+    secrets: inherit
+```
+
+**Important Notes:**
+- Uses `SECURITY_GITHUB_ACTION_PACKAGES` secret for submodule access
+- Includes submodule checkout with `submodules: recursive`
+- Caches Lambda builds for faster CI/CD
+- Supports both dev and prod deployments via reusable workflows
+
+### Step 6: Testing and Implementation Help
 For comprehensive implementation examples and testing of all 14 security event types, see [`test_publish.py`](test_publish.py). This test file demonstrates:
 - ✅ Proper usage of all security logging functions
 - ✅ Required field validation and examples  
