@@ -141,6 +141,15 @@ except Exception as e:
 ```
 
 ### Step 5: GitHub Actions Setup
+
+**⚠️ Important: Secret Access Request Required**
+
+Before setting up GitHub Actions, you must request access to the organization secret:
+
+1. **Request Secret Access**: Post a message in the `#software-infrastructure-support` Slack channel requesting access to the `SR_SECURITY_GITHUB_ACTION_MODULES` secret for your repository
+2. **Include Repository Details**: Provide your repository name and explain that you need this secret to access the security logging submodule
+3. **Wait for Approval**: The infrastructure team will grant your repository access to this organization-level secret
+
 For Python repositories that use this library as a submodule, add this workflow to `.github/workflows/main.yml`:
 
 ```yaml
@@ -166,7 +175,7 @@ jobs:
         uses: actions/checkout@v4.1.7
         with:
           submodules: recursive
-          token: ${{ secrets.SECURITY_GITHUB_ACTION_PACKAGES }}
+          token: ${{ secrets.SR_SECURITY_GITHUB_ACTION_MODULES }}
 
       - name: Set up Python
         uses: actions/setup-python@v5.1.0
@@ -233,7 +242,8 @@ jobs:
 ```
 
 **Important Notes:**
-- Uses `SECURITY_GITHUB_ACTION_PACKAGES` secret for submodule access
+- **Secret Access Required**: Request `SR_SECURITY_GITHUB_ACTION_MODULES` secret access via `#software-infrastructure-support` Slack channel before setup
+- Uses `SR_SECURITY_GITHUB_ACTION_MODULES` secret for submodule access
 - Includes submodule checkout with `submodules: recursive`
 - Caches Lambda builds for faster CI/CD
 - Supports both dev and prod deployments via reusable workflows
