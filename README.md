@@ -77,191 +77,6 @@ Without proper security logging, organizations operate blind to internal threats
 - Creating custom detail values instead of using standardized `Detail` constants
 - Not importing the constants properly from `security_log_fields.py`
 
-## 🚨 **REQUIRED: Security Logging Failure Monitoring**
-
-**⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk and compliance violation.
-
-**Why Required:** Failed security logs create gaps in monitoring, violate compliance, and impact incident response.
-
-### Quick Implementation Guide
-
-#### Step 1: Add CloudWatch Metrics to Your Code
-
-Add this simple metric reporting to your security logging implementation:
-
-```python
-import boto3
-from datetime import datetime, timezone
-
-class SecurityLoggingMetrics:
-    def __init__(self):
-        self.cloudwatch = boto3.client('cloudwatch')
-        self.service_name = os.environ.get('SERVICE_NAME', 'your-service-name')
-        self.namespace = os.environ.get('CLOUDWATCH_NAMESPACE', 'SecurityLogging')
-    
-    def report_failure(self):
-        """Report security logging failure (metric value = 1)"""
-        self.cloudwatch.put_metric_data(
-            Namespace=self.namespace,
-            MetricData=[{
-                'MetricName': 'log_failure',
-                'Value': 1.0,
-                'Unit': 'Count',
-                'Timestamp': datetime.now(timezone.utc),
-                'Dimensions': [
-                    {'Name': 'ServiceName', 'Value': self.service_name},
-                    {'Name': 'Environment', 'Value': os.environ.get('ENV_TYPE', 'unknown')}
-                ]
-            }]
-        )
-
-# Global metrics instance
-security_metrics = SecurityLoggingMetrics()
-
-# Use in your security logging code:
-result = security_logging_sns.log_user_login(...)
-if result.get("status") == "failure":
-    security_metrics.report_failure()  # Push failure metric
-    logger.error(f"Security logging failed: {result.get('message')}")
-```
-
-#### Step 2: Add CloudWatch Permissions
-
-Add these permissions to your Lambda/service IAM role:
-
-```hcl
-{
-  Effect = "Allow"
-  Action = ["cloudwatch:PutMetricData"]
-  Resource = "*"
-  Condition = {
-    StringEquals = {
-      "cloudwatch:namespace" = "SecurityLogging"  # Match your namespace
-    }
-  }
-}
-```
-
-#### Step 3: Create CloudWatch Alarms
-
-**Production Environment (Strict Monitoring):**
-```hcl
-resource "aws_cloudwatch_metric_alarm" "security_logging_failures" {
-  alarm_name          = "security-logging-failures-${var.service_name}-prod"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "log_failure"
-  namespace           = "SecurityLogging"
-  period              = "300"  # 5 minutes
-  statistic           = "Sum"
-  threshold           = "1"    # Any failure triggers alarm
-  alarm_description   = "SEV_1: Critical - Security logging failures detected"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ServiceName = var.service_name
-    Environment = "prod"
-  }
-
-  tags = {
-    Severity    = "sev_1"
-    AlertType   = "security_logging_failure"
-    ServiceName = var.service_name
-  }
-}
-```
-
-**Development Environment (Relaxed Monitoring):**
-```hcl
-resource "aws_cloudwatch_metric_alarm" "security_logging_failures_dev" {
-  alarm_name          = "security-logging-failures-${var.service_name}-dev"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "log_failure"
-  namespace           = "SecurityLogging"
-  period              = "600"  # 10 minutes
-  statistic           = "Sum"
-  threshold           = "5"    # Higher threshold for dev
-  alarm_description   = "SEV_3: Security logging failures in dev environment"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ServiceName = var.service_name
-    Environment = "dev"
-  }
-
-  tags = {
-    Severity    = "sev_3"
-    AlertType   = "security_logging_failure"
-    ServiceName = var.service_name
-  }
-}
-```
-
-#### Step 4: Set Environment Variables
-
-```bash
-# Required environment variables for your Lambda/service
-SERVICE_NAME=your-service-name
-CLOUDWATCH_NAMESPACE=YourTeam/SecurityLogging  # Optional, defaults to 'SecurityLogging'
-ENV_TYPE=prod  # or 'dev', 'staging'
-```
-
-### Reusable Terraform Module (Recommended)
-
-For teams that want a complete, reusable solution, we provide a Terraform module here that you can copy paste [https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts](https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts)
-
-[Example module usage](https://github.com/SunRun/softsec-aws-user-access-review/blob/develop/env/dev/uar-perm-ingest/security_alerts.tf):
-
-```hcl
-# Security Logging Alerts - Development Environment
-# Using the reusable security-logging-alerts module
-
-module "security_logging_alerts" {
-  source = "../../../templates/shared/security-logging-alerts"
-  
-  service_name            = "uar-permissions"
-  environment             = local.environment
-  cloudwatch_namespace    = "UAR/SecurityLogging"
-  function_name_pattern   = "uar-perm-ingest-lambda-${local.environment}"
-  
-  # Development settings: relaxed thresholds
-  failure_threshold_immediate = 5       # Higher threshold for dev environment
-  severity_immediate          = "sev_3" # Lower severity for dev
-  enable_sustained_alarm      = false   # No sustained alarm needed in dev
-  
-  common_tags = local.common_tags
-}
-```
-
-### Severity Level Guidelines
-
-| Environment | Immediate Threshold | Severity | Rationale |
-|-------------|-------------------|----------|-----------|
-| **Production** | 1 failure | `sev_1` | Any security logging failure in production is critical |
-| **Staging** | 2 failures | `sev_2` | Some tolerance for staging environment |
-| **Development** | 5 failures | `sev_3` | Higher tolerance for development noise |
-
-### Monitoring Best Practices
-
-1. **✅ Monitor All Environments**: Even dev failures can indicate code issues
-2. **✅ Use Dimensions**: Separate metrics by service and environment
-3. **✅ Set Appropriate Thresholds**: Strict for prod, relaxed for dev
-4. **✅ Alert the Right Teams**: Route production alerts to security/oncall teams
-5. **✅ Test Your Alarms**: Verify alerts fire correctly during testing
-
-### Security Logging Failure Scenarios
-
-Your monitoring should detect these failure types:
-
-- **SNS Publishing Failures**: Network issues, permission problems, topic unavailable
-- **AWS Credential Issues**: Expired credentials, insufficient permissions
-- **Validation Failures**: Missing required fields, invalid data formats
-- **Initialization Failures**: Security logging module setup problems
-- **Rate Limiting**: SNS throttling or quota exceeded
-
----
-
 ##  📦 Installation & Integration
 
 ### Step 1: Add as Git Submodule
@@ -506,32 +321,200 @@ print(result)  # {'status': 'success', 'message_content': '...'}
 ### Complete Working Example
 For a comprehensive end-to-end example showing authentication, permission changes, and error handling, see [`test_publish.py`](test_publish.py).
 
-## 🚀 Getting Started
-### Step 1: No Configuration Required
-The security logging module is pre-configured for production use. Simply initialize and start logging security events.
+## 🚨 **REQUIRED: Security Logging Failure Monitoring**
 
-**Production Configuration:**
-- ✅ **Centralized Security Logging**: All events automatically sent to the security team's monitoring system
-- ✅ **Compliance Ready**: Pre-configured for security audit and compliance requirements
-- ✅ **Zero Configuration**: No setup required for production deployments
+**⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk.
 
-### Step 2: Initialize Security Logging
-At the entry point of your application (e.g., lambda_handler), initialize the security logging module. This should be done once at application startup.
+**Why Required:** Failed security logs create gaps in monitoring and impact incident response.
+
+### Quick Implementation Guide
+
+**High-Level Overview:**
+1. **Add metrics reporting** - Modify your code to push failure metrics to CloudWatch when security logging fails
+2. **Configure IAM permissions** - Grant your service permission to publish CloudWatch metrics  
+3. **Create CloudWatch alarms** - Set up alarms that trigger when failure metrics are detected
+4. **Set environment variables** - Configure service name and environment for proper metric dimensions
+
+**Why This Works:** When security logging fails, your application pushes a metric to CloudWatch. CloudWatch alarms monitor for these metrics and alert your team immediately, ensuring no security logging failures go unnoticed.
+
+---
+
+#### Step 1: Add CloudWatch Metrics to Your Code
+
+Add this simple metric reporting to your security logging implementation:
 
 ```python
-# File: my_application.py
+import boto3
+from datetime import datetime, timezone
 
-import os
-import security_logging_sns
+class SecurityLoggingMetrics:
+    def __init__(self):
+        self.cloudwatch = boto3.client('cloudwatch')
+        self.service_name = os.environ.get('SERVICE_NAME', 'your-service-name')
+        self.namespace = os.environ.get('CLOUDWATCH_NAMESPACE', 'SecurityLogging')
+    
+    def report_failure(self):
+        """Report security logging failure (metric value = 1)"""
+        self.cloudwatch.put_metric_data(
+            Namespace=self.namespace,
+            MetricData=[{
+                'MetricName': 'log_failure',
+                'Value': 1.0,
+                'Unit': 'Count',
+                'Timestamp': datetime.now(timezone.utc),
+                'Dimensions': [
+                    {'Name': 'ServiceName', 'Value': self.service_name},
+                    {'Name': 'Environment', 'Value': os.environ.get('ENV_TYPE', 'unknown')}
+                ]
+            }]
+        )
 
-# Initialize security logging at the global scope for efficiency
-# Automatically configured for production security monitoring
-security_logging_sns.init_security_logging()
+# Global metrics instance
+security_metrics = SecurityLoggingMetrics()
 
-def lambda_handler(event, context):
-    # Your application logic starts here
-    ...
+# Use in your security logging code:
+result = security_logging_sns.log_user_login(...)
+if result.get("status") == "failure":
+    security_metrics.report_failure()  # Push failure metric
+    logger.error(f"Security logging failed: {result.get('message')}")
 ```
+
+#### Step 2: Add CloudWatch Permissions
+
+Add these permissions to your Lambda/service IAM role:
+
+```hcl
+{
+  Effect = "Allow"
+  Action = ["cloudwatch:PutMetricData"]
+  Resource = "*"
+  Condition = {
+    StringEquals = {
+      "cloudwatch:namespace" = "SecurityLogging"  # Match your namespace
+    }
+  }
+}
+```
+
+#### Step 3: Create CloudWatch Alarms
+
+**Production Environment (Strict Monitoring):**
+```hcl
+resource "aws_cloudwatch_metric_alarm" "security_logging_failures" {
+  alarm_name          = "security-logging-failures-${var.service_name}-prod"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "log_failure"
+  namespace           = "SecurityLogging"
+  period              = "300"  # 5 minutes
+  statistic           = "Sum"
+  threshold           = "1"    # Any failure triggers alarm
+  alarm_description   = "SEV_1: Critical - Security logging failures detected"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ServiceName = var.service_name
+    Environment = "prod"
+  }
+
+  tags = {
+    Severity    = "sev_1"
+    AlertType   = "security_logging_failure"
+    ServiceName = var.service_name
+  }
+}
+```
+
+**Development Environment (Relaxed Monitoring):**
+```hcl
+resource "aws_cloudwatch_metric_alarm" "security_logging_failures_dev" {
+  alarm_name          = "security-logging-failures-${var.service_name}-dev"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "log_failure"
+  namespace           = "SecurityLogging"
+  period              = "600"  # 10 minutes
+  statistic           = "Sum"
+  threshold           = "5"    # Higher threshold for dev
+  alarm_description   = "SEV_3: Security logging failures in dev environment"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ServiceName = var.service_name
+    Environment = "dev"
+  }
+
+  tags = {
+    Severity    = "sev_3"
+    AlertType   = "security_logging_failure"
+    ServiceName = var.service_name
+  }
+}
+```
+
+#### Step 4: Set Environment Variables
+
+```bash
+# Required environment variables for your Lambda/service
+SERVICE_NAME=your-service-name
+CLOUDWATCH_NAMESPACE=YourTeam/SecurityLogging  # Optional, defaults to 'SecurityLogging'
+ENV_TYPE=prod  # or 'dev', 'staging'
+```
+
+### Reusable Terraform Module (Recommended)
+
+For teams that want a complete, reusable solution, we provide a Terraform module here that you can copy paste [https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts](https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts)
+
+[Example module usage](https://github.com/SunRun/softsec-aws-user-access-review/blob/develop/env/dev/uar-perm-ingest/security_alerts.tf):
+
+```hcl
+# Security Logging Alerts - Development Environment
+# Using the reusable security-logging-alerts module
+
+module "security_logging_alerts" {
+  source = "../../../templates/shared/security-logging-alerts"
+  
+  service_name            = "uar-permissions"
+  environment             = local.environment
+  cloudwatch_namespace    = "UAR/SecurityLogging"
+  function_name_pattern   = "uar-perm-ingest-lambda-${local.environment}"
+  
+  # Development settings: relaxed thresholds
+  failure_threshold_immediate = 5       # Higher threshold for dev environment
+  severity_immediate          = "sev_3" # Lower severity for dev
+  enable_sustained_alarm      = false   # No sustained alarm needed in dev
+  
+  common_tags = local.common_tags
+}
+```
+
+### Severity Level Guidelines
+
+| Environment | Immediate Threshold | Severity | Rationale |
+|-------------|-------------------|----------|-----------|
+| **Production** | 1 failure | `sev_1` | Any security logging failure in production is critical |
+| **Staging** | 2 failures | `sev_2` | Some tolerance for staging environment |
+| **Development** | 5 failures | `sev_3` | Higher tolerance for development noise |
+
+### Monitoring Best Practices
+
+1. **✅ Monitor All Environments**: Even dev failures can indicate code issues
+2. **✅ Use Dimensions**: Separate metrics by service and environment
+3. **✅ Set Appropriate Thresholds**: Strict for prod, relaxed for dev
+4. **✅ Alert the Right Teams**: Route production alerts to security/oncall teams
+5. **✅ Test Your Alarms**: Verify alerts fire correctly during testing
+
+### Security Logging Failure Scenarios
+
+Your monitoring should detect these failure types:
+
+- **SNS Publishing Failures**: Network issues, permission problems, topic unavailable
+- **AWS Credential Issues**: Expired credentials, insufficient permissions
+- **Validation Failures**: Missing required fields, invalid data formats
+- **Initialization Failures**: Security logging module setup problems
+- **Rate Limiting**: SNS throttling or quota exceeded
+
+---
 
 ## 📋 Schema Structure
 
@@ -722,19 +705,7 @@ result = security_logging_sns.log_permission_change(
 
 > **📝 Note**: For complete examples of all 14 available functions, see [`test_publish.py`](test_publish.py).
 
-## 🔑 Key Changes: Detail Field Approach
 
-**Important:** All functions now use the `detail` field instead of the old `action_type` parameter:
-
-- ✅ **New Approach**: `detail=Detail.USER_DISABLED` → generates `"detail": "detail.action.user_disabled"`
-- ❌ **Old Approach**: `action_type="user_disabled"` (no longer supported)
-
-### Common Detail Field Values:
-- **Authentication**: `Detail.USER_INITIATED`, `Detail.SESSION_TIMEOUT`, `Detail.INVALID_CREDENTIALS`
-- **Actions**: `Detail.USER_DISABLED`, `Detail.IMPERSONATION_START`, `Detail.VIEW_LIST`, `Detail.VIEW_RECORD`
-- **Configuration**: `Detail.MFA_ENABLED`, `Detail.PASSWORD_CHANGE`, `Detail.API_KEY_CREATED`, `Detail.NEW_SSO_PROVIDER`
-
-All detail values are automatically formatted as standardized strings (e.g., `Detail.USER_DISABLED` becomes `"detail.action.user_disabled"`).
 
 ## 📚 API Reference
 
@@ -758,10 +729,10 @@ def log_function_name(
     cloud_env_unique_id="",
     cloud_env_name="",
     service_account_id="",
+    detail="",
     # Event-specific parameters (vary by function)
     # Optional parameters
     source_ip_address="",
-    detail=""
 ):
     return {"status": "success|failure", "message": "..."}
 ```
@@ -835,12 +806,6 @@ The unit tests cover:
 - ✅ **Error Handling**: Missing fields and invalid values handled gracefully
 - ✅ **Validation**: Standardized field validation
 
-## Dependencies
-Ensure you have the boto3 library installed in your Python environment.
-
-```bash
-pip install boto3
-```
 
 ## 📄 Sample Log Outputs
 
