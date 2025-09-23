@@ -122,7 +122,7 @@ security_metrics = SecurityLoggingMetrics()
 result = security_logging_sns.log_user_login(...)
 if result.get("status") == "failure":
     security_metrics.report_failure()  # Push failure metric
-    logger.warning(f"Security logging failed: {result.get('message')}")
+    logger.error(f"Security logging failed: {result.get('message')}")
 ```
 
 #### Step 2: Add CloudWatch Permissions
@@ -209,30 +209,28 @@ ENV_TYPE=prod  # or 'dev', 'staging'
 
 ### Reusable Terraform Module (Recommended)
 
-For teams that want a complete, reusable solution, we provide a Terraform module:
+For teams that want a complete, reusable solution, we provide a Terraform module here that you can copy paste [https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts](https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts)
+
+[Example module usage](https://github.com/SunRun/softsec-aws-user-access-review/blob/develop/env/dev/uar-perm-ingest/security_alerts.tf):
 
 ```hcl
-# Use the reusable security logging alerts module
+# Security Logging Alerts - Development Environment
+# Using the reusable security-logging-alerts module
+
 module "security_logging_alerts" {
-  source = "git::https://github.com/YourOrg/terraform-modules//security-logging-alerts"
+  source = "../../../templates/shared/security-logging-alerts"
   
-  service_name         = "your-service-name"
-  environment          = "prod"
-  cloudwatch_namespace = "YourTeam/SecurityLogging"
+  service_name            = "uar-permissions"
+  environment             = local.environment
+  cloudwatch_namespace    = "UAR/SecurityLogging"
+  function_name_pattern   = "uar-perm-ingest-lambda-${local.environment}"
   
-  # Production: Strict thresholds
-  failure_threshold_immediate = 1      # Any failure is critical
-  severity_immediate          = "sev_1"
+  # Development settings: relaxed thresholds
+  failure_threshold_immediate = 5       # Higher threshold for dev environment
+  severity_immediate          = "sev_3" # Lower severity for dev
+  enable_sustained_alarm      = false   # No sustained alarm needed in dev
   
-  # Optional: Sustained failure monitoring
-  failure_threshold_sustained = 3      # 3+ failures indicates systematic issue
-  severity_sustained          = "sev_2"
-  
-  common_tags = {
-    Team        = "YourTeam"
-    Application = "YourApp"
-    Environment = "prod"
-  }
+  common_tags = local.common_tags
 }
 ```
 
@@ -261,13 +259,6 @@ Your monitoring should detect these failure types:
 - **Validation Failures**: Missing required fields, invalid data formats
 - **Initialization Failures**: Security logging module setup problems
 - **Rate Limiting**: SNS throttling or quota exceeded
-
-### Compliance and Audit Requirements
-
-- **SOC 2**: Requires monitoring of security logging systems
-- **PCI DSS**: Mandates alerting on security system failures
-- **GDPR**: Requires audit trail completeness verification
-- **Internal Audits**: Security teams must be notified of logging gaps
 
 ---
 
@@ -329,7 +320,7 @@ import security_logging_sns
 try:
     security_logging_sns.init_security_logging()
 except Exception as e:
-    logging.getLogger(__name__).warning(f"Failed to initialize security logging: {e}")
+    logging.getLogger(__name__).error(f"Failed to initialize security logging: {e}")
     # REQUIRED: Report initialization failure
     security_metrics.report_failure()
 ```
@@ -807,7 +798,7 @@ All logging functions return a dictionary with the following structure:
 result = security_logging_sns.log_user_login(...)
 if result["status"] == "failure":
     security_metrics.report_failure()  # Push CloudWatch metric
-    app_logger.warning(f"Security logging failed: {result['message']}")
+    app_logger.error(f"Security logging failed: {result['message']}")
 
 # ✅ Good - Use constants from security_log_fields
 from security_log_fields import ActorType, UserRole, Detail
@@ -1085,14 +1076,6 @@ console.log('LOGIN:', user.email, 'SUCCESS', new Date().toISOString());
 // Application C - Structured logging
 log.event('user.login', { user: user.id, status: 'success', ip: req.ip });
 ```
-
-### **✅ Why Direct Security Logging is Superior**
-
-- **Consistent Schema**: Every security event follows the same standardized structure
-- **Required Fields**: All mandatory security fields are guaranteed to be present
-- **Real-Time Delivery**: Security events are sent directly to monitoring systems
-- **Compliance Ready**: Meets audit and regulatory requirements out of the box
-- **Single Integration**: One-time implementation per application
 
 ### **🎯 Recommendation**
 
