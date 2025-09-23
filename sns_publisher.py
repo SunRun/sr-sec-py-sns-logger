@@ -76,13 +76,14 @@ class SNSPublisher:
             message = json.dumps(log_details, indent=2)
 
             if self.test_mode:
-                # In test mode, just print the message instead of sending to SNS
+                # In test mode, log safe summary information without exposing sensitive data
                 print("🧪 TEST MODE - Would send to SNS:")
                 print(f"📍 Topic ARN: {self.topic_arn}")
-                print(f"📦 Message:")
-                print(message)
+                print(f"📦 Message size: {len(message)} characters")
+                print(f"📦 Event type: {log_details.get('event_type', 'unknown')}")
+                print(f"📦 Actor type: {log_details.get('actor_type', 'unknown')}")
                 print("=" * 60)
-                return {"status": "success", "test_mode": True, "message_content": message}
+                return {"status": "success", "test_mode": True, "message_size": len(message)}
             else:
                 # Publish the message to the SNS topic
                 # AWS SDK will automatically handle retries according to RETRY_CONFIG
