@@ -338,7 +338,16 @@ def test_all_security_events():
                 print(f"✅ {test_name}: SUCCESS")
                 success_count += 1
             else:
-                print(f"❌ {test_name}: FAILED - {result}")
+                # Only log safe, non-sensitive information to avoid clear-text logging of sensitive data
+                if isinstance(result, dict):
+                    error_status = result.get('status', 'unknown')
+                    error_message = result.get('message', '')
+                    if error_message:
+                        print(f"❌ {test_name}: FAILED - {error_status}: {error_message}")
+                    else:
+                        print(f"❌ {test_name}: FAILED - {error_status}")
+                else:
+                    print(f"❌ {test_name}: FAILED")
         
         print()
         print(f"🎯 Overall Results: {success_count}/{len(test_results)} events published successfully")
