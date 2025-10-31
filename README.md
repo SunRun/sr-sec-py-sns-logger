@@ -10,6 +10,9 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - 📦 **Simple API**: One-line initialization, clean function calls
 - 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
 - 📋 **Schema Compliant**: Implements standardized base_log + log_specifics structure
+- ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
+
+---
 
 ## 🎯 Why Security Logging Matters
 
@@ -35,12 +38,31 @@ Implementing comprehensive security logging is not just a compliance requirement
 
 Without proper security logging, organizations operate blind to internal threats, compliance violations, and sophisticated attacks that bypass perimeter defenses. This package ensures every critical security event is captured, formatted consistently, and delivered to your security monitoring systems for analysis and response.
 
-## 📋 **CRITICAL FIRST STEP: Review Required Fields**
+---
+
+## 📋 Part 1: Quick Start
+
+### The Developer's Mindset
+
+Before diving into implementation, it's important to understand the philosophy behind effective security logging:
+
+**🧠 Think, Don't Just Apply**
+Templates and examples are guides, not blind scripts. Every application is unique, and you need to thoughtfully map your specific business logic to the appropriate security events. Don't just copy-paste—understand what each event represents and when it should be triggered.
+
+**🎯 Know Your Endpoints**
+You are responsible for understanding the sensitivity of the data your endpoints handle. The framework provides classifications (Public, Internal, Confidential, PII), but you must determine which classification applies to each of your endpoints based on the data they access or modify.
+
+**🛡️ Security is Your Responsibility**
+Developers are the primary implementers of security controls in modern applications. This logging framework is a tool to help you build secure applications with proper visibility, but the responsibility for implementing it correctly lies with you.
+
+The framework is designed to make security logging easier and more consistent, but it cannot replace thoughtful security implementation.
+
+### Prerequisites: Review Required
 
 **⚠️ MANDATORY REQUIREMENT**: Before implementing any security logging functions, you **MUST** thoroughly review both the standardized field definitions and the organizational logging framework:
 
-### 🔗 **Required Reading**:
-1. **[Minimum Standard Logging Framework](https://sunrun.jira.com/wiki/spaces/SUNSEC/pages/4267769872/Minimum+Standard+Logging+Framework)** - Organizational security logging standards and requirements
+#### 🔗 **Required Reading**:
+1. **[Introduction to the Sunrun Security Logging Framework](https://docs.google.com/document/d/1nSL0ImYuCG3Alr4_BeUETdHoz1nBrQrhp5jnv55f8cQ/edit?tab=t.0)** - Organizational security logging standards and requirements
 2. **[security_log_fields.py](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py)** - Technical field definitions and constants
 
 **Why This Review is Critical:**
@@ -53,7 +75,7 @@ Without proper security logging, organizations operate blind to internal threats
 
 4. **🛠️ Implementation Success**: Reviewing the field definitions first will save significant development time by preventing common validation errors.
 
-### **Key Areas to Review:**
+#### **Key Areas to Review:**
 
 - **Event Types**: Complete list of supported security events (`EventType` class)
 - **Actor Types**: Standardized actor classifications (`ActorType` class) 
@@ -62,9 +84,9 @@ Without proper security logging, organizations operate blind to internal threats
 - **User Roles**: Role classifications for your organization (`UserRole` class)
 - **Required vs Optional Fields**: Understanding which fields are mandatory for each event type
 
-### **Implementation Workflow:**
+#### **Implementation Workflow:**
 
-1. **📋 Step 1**: Review the [Minimum Standard Logging Framework](https://sunrun.jira.com/wiki/spaces/SUNSEC/pages/4267769872/Minimum+Standard+Logging+Framework) to understand organizational requirements
+1. **📋 Step 1**: Review the [Introduction to the Sunrun Security Logging Framework](https://docs.google.com/document/d/1nSL0ImYuCG3Alr4_BeUETdHoz1nBrQrhp5jnv55f8cQ/edit?tab=t.0) to understand organizational requirements
 2. **📖 Step 2**: Review [`security_log_fields.py`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py) for technical field definitions
 3. **🎯 Step 3**: Identify the specific event types your application needs to log
 4. **✅ Step 4**: Map your application's data to the standardized field values
@@ -77,14 +99,72 @@ Without proper security logging, organizations operate blind to internal threats
 - Creating custom detail values instead of using standardized `Detail` constants
 - Not importing the constants properly from `security_log_fields.py`
 
-##  📦 Installation & Integration
+### Request SNS Permissions
 
-### Step 1: Add as Git Submodule
+Before you can use this security logging module in production, you need to request permissions to publish to the security logging SNS topic.
+
+#### Step-by-Step Instructions
+
+1. **Gather Your Information**: Collect the details listed in the Slack template below
+2. **Post in Slack**: Send the template message to the security team
+3. **Wait for Approval**: The security team will configure the necessary permissions
+4. **Test Your Setup**: Use the examples in this guide to verify everything works
+
+#### Slack Request Template
+
+Copy and paste this template into your request:
+
+```
+Hi Security Team! 👋
+
+I need SNS topic permissions for security logging in my application.
+
+📋 **Application Details:**
+• Application Name: [your-app-name]
+• Environment: [dev/staging/prod]
+• Team: [your-team-name]
+• Slack Channel: #your-team-channel
+
+🔐 **AWS/GCP Details:**
+• AWS Account ID / GCP Project ID: [123456789012]
+• IAM Role/Service Account: [see examples below based on your infrastructure]
+• Region: [us-west-2, us-east-1, etc.]
+• SNS Topic Region: us-west-2 (fixed - this is where the security logging SNS topic is located)
+
+📖 **Documentation Review:**
+✅ I have reviewed the security logging documentation and implementation guide
+
+**📍 Note About Cross-Region Publishing:**
+The security logging SNS topic is located in **us-west-2**, regardless of where your application runs. AWS SNS supports cross-region publishing, so your application can publish to the us-west-2 topic even if it runs in a different region (e.g., Shanghai/ap-southeast-1). No special configuration needed - just ensure your IAM role has permissions to publish to the us-west-2 SNS topic.
+
+🙏 Thank you!
+```
+
+#### IAM Role/Service Account Examples by Infrastructure Type
+
+| Infrastructure Type | Example IAM Role/Service Account |
+|-------------------|----------------------------------|
+| **AWS Lambda** | `arn:aws:iam::123456789012:role/my-lambda-execution-role` |
+| **AWS Amplify** | `arn:aws:iam::123456789012:role/amplify-my-app-role` |
+| **AWS ECS/Fargate** | `arn:aws:iam::123456789012:role/ecs-task-execution-role` |
+| **AWS EC2** | `arn:aws:iam::123456789012:role/ec2-instance-role` |
+| **GKE (Google)** | `serviceAccount:my-app@project-id.iam.gserviceaccount.com` |
+| **EKS (Kubernetes)** | `arn:aws:iam::123456789012:role/eks-pod-execution-role` |
+| **Local/Dev Environment** | `your-aws-profile-name` or `arn:aws:iam::123456789012:user/developer-name` |
+
+### 5-Minute Getting Started
+
+#### Step 1: Install Dependencies
+```bash
+pip install boto3
+```
+
+#### Step 2: Add as Git Submodule
 ```bash
 git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
 ```
 
-### Step 2: Create Symlinks for IDE Support
+#### Step 3: Create Symlinks for IDE Support
 Navigate to your application source directory and create symlinks:
 
 ```bash
@@ -93,54 +173,629 @@ ln -sf ../../sr-sec-py-sns-logger/security_log_fields.py security_log_fields.py
 ln -sf ../../sr-sec-py-sns-logger/sns_publisher.py sns_publisher.py
 ```
 
-### Step 3: Configure AWS Permissions
-Add SNS permissions to your application's IAM role:
+#### Step 4: Quick Example
+```python
+import sr_sec_py_sns_logger as SecurityLogging
+from concurrent.futures import ThreadPoolExecutor
+
+# Initialize (one time at app startup)
+SecurityLogging.init_security_logging(
+    test_mode=True  # Remove for production
+)
+
+# ⚠️ PERFORMANCE NOTE: Direct logging calls can block your application!
+# 
+# Current config: 30s timeout per attempt × 5 attempts = up to 150 seconds worst-case
+# If SNS is slow/down, this WILL delay your user's response.
+#
+# 🔥 RECOMMENDED: Use fire-and-forget pattern (see below) to avoid blocking while still
+# capturing failures in CloudWatch for monitoring/alerting.
+
+# BLOCKING approach (NOT recommended for production):
+# result = SecurityLogging.log_user_login(...)
+
+# NON-BLOCKING approach (RECOMMENDED):
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_user_login,
+        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        actor_identifier="user@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-123",
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="web-app",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="production",
+        service_account_id="sa-logger@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0",
+        user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants: https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py#L203
+        status=SecurityLogging.Status.SUCCESS,
+        detail="First time login from new device"
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+
+# Application continues immediately - not blocked by SNS!
+print("✅ Security logging initiated (non-blocking)")
+```
+
+#### Step 5: Set Up Error Monitoring
+```python
+# Set up custom error handler for failures (once at startup)
+def security_error_handler(error_msg, event_type):
+    print(f"🚨 Security logging failed for {event_type}: {error_msg}")
+    # In production, emit CloudWatch metrics here for alerting
+
+SecurityLogging.set_security_logging_error_handler(security_error_handler)
+```
+
+**🎉 That's it!** You now have non-blocking security logging with error monitoring. For complete examples of all 14 event types, see [`example_publish.py`](example_publish.py).
+
+---
+
+## 🎯 Best Practice: Fire-and-Forget Pattern
+
+**Problem:** Direct security logging calls can block your application for up to 150 seconds if SNS is slow or unavailable, causing poor user experience.
+
+**Solution:** Use the fire-and-forget pattern to log security events asynchronously without blocking your application.
+
+### Step 1: Set Up Error Handler (Once at Startup)
+```python
+import sr_sec_py_sns_logger as SecurityLogging
+import boto3
+import os
+
+def setup_security_logging():
+    """Initialize security logging with error handling."""
+    # Initialize the module
+    SecurityLogging.init_security_logging()
+    
+    # Set up custom error handler for failures
+    def security_error_handler(error_msg, event_type):
+        print(f"🚨 Security logging failed for {event_type}: {error_msg}")
+        
+        # Push failure metric to CloudWatch for alerting
+        cloudwatch = boto3.client('cloudwatch')
+        cloudwatch.put_metric_data(
+            Namespace='SecurityLogging',
+            MetricData=[{
+                'MetricName': 'log_failure',
+                'Value': 1.0,
+                'Unit': 'Count',
+                'Dimensions': [
+                    {'Name': 'ServiceName', 'Value': os.environ.get('SERVICE_NAME', 'unknown')},
+                    {'Name': 'Environment', 'Value': os.environ.get('ENV_TYPE', 'unknown')},
+                    {'Name': 'EventType', 'Value': event_type or 'unknown'}
+                ]
+            }]
+        )
+    
+    SecurityLogging.set_security_logging_error_handler(security_error_handler)
+
+# Call once at application startup
+setup_security_logging()
+```
+
+### Step 2: Use Fire-and-Forget Everywhere
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+# In your application code - this is NON-BLOCKING
+def handle_user_login(user_email, session_id, user_agent):
+    # Your application logic here...
+    
+    # Log security event (non-blocking)
+    with ThreadPoolExecutor() as executor:
+        future = executor.submit(
+            SecurityLogging.log_user_login,
+            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            actor_identifier=user_email,
+            actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+            session_id=session_id,
+            cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+            service_name="auth-service",
+            cloud_env_unique_id="123456789012",
+            cloud_env_name="production",
+            service_account_id="lambda-execution-role",
+            user_agent=user_agent,
+            user_role=SecurityLogging.UserRole.ADMIN,
+            status=SecurityLogging.Status.SUCCESS,
+            detail="Successful login"
+        )
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    
+    # Return response immediately - user not blocked by SNS
+    return {"status": "success", "message": "Login successful"}
+```
+
+### Step 3: Monitor with CloudWatch Alarms
+```hcl
+# CloudWatch alarm configuration (Terraform)
+resource "aws_cloudwatch_metric_alarm" "security_logging_failures" {
+  alarm_name          = "security-logging-failures-prod"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "log_failure"
+  namespace           = "SecurityLogging"
+  period              = "300"
+  statistic           = "Sum"
+  threshold           = "1"
+  alarm_description   = "SEV_1: Critical - Security logging failures detected"
+  
+  dimensions = {
+    ServiceName = "your-service-name"
+    Environment = "prod"
+  }
+}
+```
+
+### Benefits of Fire-and-Forget Pattern
+- ✅ **Non-blocking**: User requests return immediately
+- ✅ **Failure monitoring**: Errors are captured and reported via CloudWatch
+- ✅ **Reliability**: SNS issues don't impact user experience
+- ✅ **Observability**: Failed logs trigger alerts for investigation
+- ✅ **Performance**: No impact on application response times
+
+### Comparison: Blocking vs Non-Blocking
+
+| Approach | User Experience | Failure Handling | Performance Impact |
+|----------|----------------|------------------|-------------------|
+| **Blocking** (`result = log_user_login(...)`) | ❌ Poor (up to 150s delays) | ✅ Immediate feedback | ❌ High (blocks requests) |
+| **Fire-and-Forget** (`fire_and_forget(future, event_type)`) | ✅ Excellent (no delays) | ✅ CloudWatch alerting | ✅ None (async) |
+
+---
+
+## 📋 Part 2: The Implementation Playbook
+
+### Step 1: List Your Activities
+
+Before implementing security logging, create a comprehensive list of all security-relevant activities in your application:
+
+**Authentication & Session Activities:**
+- User login attempts (success/failure)
+- Multi-factor authentication challenges
+- User logout events
+- Session timeouts
+
+**Authorization & Access Control:**
+- Permission/role changes
+- User account status changes (disabled, enabled, deleted)
+- Administrative impersonation events
+- User invitation events
+
+**API & Data Access:**
+- API endpoint access (especially sensitive endpoints)
+- Customer data viewing/modification
+- Bulk data exports or reports
+- Single customer record access
+
+**Configuration Changes:**
+- MFA device management
+- Password changes/resets
+- API key lifecycle events
+- Authentication mechanism modifications
+
+### Step 2: Map Activities to Logger Events
+
+For each activity you identified, determine which security logging function to use. This decision guide will help you choose the right function:
+
+#### **Is the activity about a user logging in, out, or using MFA?**  
+📖 **Review the [Authentication & Session functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L221)**
+- ➡️ Use: [`log_user_login()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L221) - User successfully/unsuccessfully logs in
+- ➡️ Use: [`log_mfa_challenge()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L318) - MFA verification attempt
+- ➡️ Use: [`log_user_logout()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L420) - User logs out or session ends
+
+#### **Is the activity about changing permissions, roles, or user status?**
+📖 **Review the [Authorization & Access functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L521)**
+- ➡️ Use: [`log_permission_role_change()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L521) - Permission/role/group membership changes
+- ➡️ Use: [`log_user_status_change()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L615) - User disabled/enabled/deleted
+- ➡️ Use: [`log_impersonation_event()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L694) - Admin impersonating another user
+- ➡️ Use: [`log_user_invite_event()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L780) - User invitations sent/accepted/revoked
+
+#### **Is the activity about API access or endpoint requests?**
+📖 **Review the [API Endpoint Access functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876)**
+- ➡️ Use: [`log_api_request()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876) - API endpoint access (success/failure)
+
+#### **Is the activity about viewing or modifying customer data?**
+📖 **Review the [Customer Data Actions functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984)**
+- ➡️ Use: [`log_multi_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984) - Viewing/exporting multiple customer records
+- ➡️ Use: [`log_single_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1084) - Viewing/modifying single customer record
+
+#### **Is the activity about security configuration changes?**
+📖 **Review the [Key Configuration Changes functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1182)**
+- ➡️ Use: [`log_mfa_status_change()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1182) - MFA enabled/disabled/device added
+- ➡️ Use: [`log_password_change_reset()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1274) - Password changes/resets
+- ➡️ Use: [`log_api_key_lifecycle()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1362) - API key created/revoked/modified
+- ➡️ Use: [`log_auth_mechanism_modification()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1449) - SSO configuration changes
+
+**💡 Pro Tip:** Click the function links above to see the exact parameters and examples for each function!
+
+### Step 3: Track Implementation Progress
+
+Create a checklist to track your implementation progress:
+
+**✅ Implementation Checklist:**
+- [ ] SNS permissions requested and approved
+- [ ] Security logging initialized in application startup
+- [ ] Error handler configured for fire-and-forget logging
+- [ ] CloudWatch monitoring set up with alarms
+- [ ] Authentication events implemented
+- [ ] Authorization events implemented  
+- [ ] API access events implemented
+- [ ] Customer data access events implemented
+- [ ] Configuration change events implemented
+- [ ] All events tested in `test_mode=True`
+- [ ] Production deployment with monitoring verified
+
+---
+
+## 📋 Part 3: API Function Reference
+
+### Available Functions
+The library provides 14 security logging functions covering:
+- **Authentication & Session**: `log_user_login()`, `log_mfa_challenge()`, `log_user_logout()`
+- **Authorization & Access**: `log_permission_role_change()`, `log_user_status_change()`, `log_impersonation_event()`, `log_user_invite_event()`
+- **API & Data Access**: `log_api_request()`, `log_multi_record_access()`, `log_single_record_access()`
+- **Key Management**: `log_mfa_status_change()`, `log_password_change_reset()`, `log_api_key_lifecycle()`, `log_auth_mechanism_modification()`
+
+### Function Signature Pattern
+All functions follow this pattern:
+```python
+def log_function_name(
+    # Base log parameters (required for all functions)
+    actor_identifier="",
+    actor_type="", 
+    session_id="",
+    cloud_env_type="",
+    service_name="",
+    cloud_env_unique_id="",
+    cloud_env_name="",
+    service_account_id="",
+    # Event-specific parameters (vary by function)
+    # Optional parameters
+    source_ip_address="",
+):
+    return {"status": "success|failure", "message": "..."}
+```
+
+### Key Function Examples
+
+#### User Login
+```python
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_user_login,
+        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        actor_identifier="alice@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-xyz789",
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        user_role=SecurityLogging.UserRole.ADMIN,
+        status=SecurityLogging.Status.SUCCESS,
+        source_ip_address="192.168.1.100",
+        detail="First time login from new device"
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+```
+
+#### API Request
+```python
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_api_request,
+        event_type=SecurityLogging.EventType.API_REQUEST_PROCESSED,
+        actor_identifier="api_client_123",
+        actor_type=SecurityLogging.ActorType.SERVICE_PARTNER,
+        session_id="session-api-456",
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="api-gateway",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-api@project.iam.gserviceaccount.com",
+        auth_protocol=SecurityLogging.AuthProtocol.API_KEY,
+        endpoint_path="/api/v1/customers",
+        http_method=SecurityLogging.HttpMethod.GET,
+        authorization_status=SecurityLogging.Status.SUCCESS,
+        endpoint_sensitivity=SecurityLogging.EndpointSensitivity.CONFIDENTIAL,
+        source_ip_address="203.0.113.54"
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.API_REQUEST_PROCESSED)
+```
+
+#### Permission Change
+```python
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_permission_role_change,
+        event_type=SecurityLogging.EventType.PERMISSION_CHANGE,
+        actor_identifier="admin@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-admin-perm",
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        target_user_identifier="newuser@company.com",
+        object_changed="Role",
+        previous_value="customer_support",
+        new_value="admin",
+        source_ip_address="10.0.1.25"
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.PERMISSION_CHANGE)
+```
+
+> **📝 Note**: For complete examples of all 14 available functions, see [`example_publish.py`](example_publish.py).
+
+---
+
+## 📋 Part 4: Production Readiness
+
+### CloudWatch Monitoring Implementation
+
+**⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk.
+
+**Why Required:** Failed security logs create gaps in monitoring and impact incident response.
+
+#### Step 1: Install AWS CloudWatch SDK
+```bash
+pip install boto3
+```
+
+#### Step 2: Create Reusable CloudWatch Metrics Helper
+
+```python
+import boto3
+import os
+import sys
+from datetime import datetime, timezone
+from typing import Optional
+
+class SecurityLoggingMetrics:
+    """
+    Reusable CloudWatch metrics helper for security logging failures.
+    Integrates with fire-and-forget error handling.
+    """
+    
+    def __init__(self):
+        self.cloudwatch = boto3.client('cloudwatch', region_name=os.environ.get('AWS_REGION', 'us-west-2'))
+        self.service_name = os.environ.get('SERVICE_NAME', 'your-service-name')
+        self.environment = os.environ.get('ENV_TYPE', 'unknown')
+        self.namespace = 'SecurityLogging'
+    
+    def report_failure(self, event_type: Optional[str] = None) -> None:
+        """
+        Report security logging failure (metric value = 1).
+        This method is also fire-and-forget - won't block if metrics fail.
+        
+        Args:
+            event_type: Optional event type for additional context
+        """
+        dimensions = [
+            {'Name': 'ServiceName', 'Value': self.service_name},
+            {'Name': 'Environment', 'Value': self.environment}
+        ]
+        
+        if event_type:
+            dimensions.append({'Name': 'EventType', 'Value': event_type})
+        
+        try:
+            self.cloudwatch.put_metric_data(
+                Namespace=self.namespace,
+                MetricData=[{
+                    'MetricName': 'log_failure',
+                    'Value': 1.0,
+                    'Unit': 'Count',
+                    'Timestamp': datetime.now(timezone.utc),
+                    'Dimensions': dimensions
+                }]
+            )
+        except Exception as error:
+            # Don't let metrics failures break the app
+            print(f'Failed to report security logging failure metric: {error}', file=sys.stderr)
+
+# Global metrics instance
+security_metrics = SecurityLoggingMetrics()
+```
+
+#### Step 3: Wire Up Error Handler at App Startup
+
+```python
+import sr_sec_py_sns_logger as SecurityLogging
+
+def setup_security_logging():
+    """Complete security logging setup with monitoring."""
+    # Initialize security logging
+    SecurityLogging.init_security_logging(
+        test_mode=os.environ.get('ENV_TYPE') != 'production'
+    )
+    
+    # Set up error handler that reports to CloudWatch
+    def security_error_handler(error_msg, event_type):
+        print(f"🚨 Security logging failed for {event_type}: {error_msg}", file=sys.stderr)
+        security_metrics.report_failure(event_type)
+    
+    SecurityLogging.set_security_logging_error_handler(security_error_handler)
+    print("✅ Security logging initialized with CloudWatch monitoring")
+
+# Call once at application startup
+setup_security_logging()
+```
+
+#### Step 4: Use Fire-and-Forget Everywhere
+
+Simple usage - failures automatically get logged + reported:
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+# In your application code
+def handle_user_login(user_email, session_id):
+    # Your business logic here...
+    
+    # Security logging (non-blocking, with automatic failure reporting)
+    with ThreadPoolExecutor() as executor:
+        future = executor.submit(
+            SecurityLogging.log_user_login,
+            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            actor_identifier=user_email,
+            actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+            session_id=session_id,
+            cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+            service_name="auth-service",
+            cloud_env_unique_id="123456789012",
+            cloud_env_name="production",
+            service_account_id="lambda-execution-role",
+            user_agent="Mozilla/5.0...",
+            user_role=SecurityLogging.UserRole.ADMIN,
+            status=SecurityLogging.Status.SUCCESS,
+            detail="Successful login"
+        )
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    
+    # User gets immediate response - no blocking
+    return {"status": "success"}
+```
+
+#### Step 5: Add CloudWatch Permissions
+
+Add these permissions to your Lambda/service IAM role:
 
 ```hcl
-# Terraform example - replace YOUR_SECURITY_ACCOUNT_ID
-{
-  Effect = "Allow"
-  Action = ["sns:Publish"]
-  Resource = "arn:aws:sns:${var.aws_region}:YOUR_SECURITY_ACCOUNT_ID:sr-sec-logging-log-topic-${local.environment}"
-}
-
-# If SNS topic is KMS encrypted, also add:
-{
-  Effect = "Allow"
-  Action = [
-    "kms:GenerateDataKey",
-    "kms:Decrypt"
-  ]
-  Resource = "arn:aws:kms:${var.aws_region}:YOUR_SECURITY_ACCOUNT_ID:key/*"
-}
-
-# REQUIRED: CloudWatch metrics permissions for failure monitoring
 {
   Effect = "Allow"
   Action = ["cloudwatch:PutMetricData"]
   Resource = "*"
   Condition = {
     StringEquals = {
-      "cloudwatch:namespace" = "SecurityLogging"
+      "cloudwatch:namespace" = "SecurityLogging"  # Match your namespace
     }
   }
 }
 ```
 
-### Step 4: Initialize in Your Application
-```python
-import security_logging_sns
+#### Step 6: Create CloudWatch Alarms
 
-# Initialize once at application startup
-try:
-    security_logging_sns.init_security_logging()
-except Exception as e:
-    logging.getLogger(__name__).error(f"Failed to initialize security logging: {e}")
-    # REQUIRED: Report initialization failure
-    security_metrics.report_failure()
+**Production Environment (Strict Monitoring):**
+```hcl
+resource "aws_cloudwatch_metric_alarm" "security_logging_failures" {
+  alarm_name          = "security-logging-failures-${var.service_name}-prod"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "log_failure"
+  namespace           = "SecurityLogging"
+  period              = "300"  # 5 minutes
+  statistic           = "Sum"
+  threshold           = "1"    # Any failure triggers alarm
+  alarm_description   = "SEV_1: Critical - Security logging failures detected"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ServiceName = var.service_name
+    Environment = "prod"
+  }
+
+  tags = {
+    Severity    = "sev_1"
+    AlertType   = "security_logging_failure"
+    ServiceName = var.service_name
+  }
+}
 ```
 
-### Step 5: GitHub Actions Setup
+**Development Environment (Relaxed Monitoring):**
+```hcl
+resource "aws_cloudwatch_metric_alarm" "security_logging_failures_dev" {
+  alarm_name          = "security-logging-failures-${var.service_name}-dev"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "2"
+  metric_name         = "log_failure"
+  namespace           = "SecurityLogging"
+  period              = "600"  # 10 minutes
+  statistic           = "Sum"
+  threshold           = "5"    # Higher threshold for dev
+  alarm_description   = "SEV_3: Security logging failures in dev environment"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    ServiceName = var.service_name
+    Environment = "dev"
+  }
+
+  tags = {
+    Severity    = "sev_3"
+    AlertType   = "security_logging_failure"
+    ServiceName = var.service_name
+  }
+}
+```
+
+#### Step 7: Set Environment Variables
+
+```bash
+# Required environment variables for your Lambda/service
+SERVICE_NAME=your-service-name
+ENV_TYPE=prod  # or 'dev', 'staging'
+AWS_REGION=us-west-2  # Optional, defaults to us-west-2
+```
+
+### Reusable Terraform Module (Recommended)
+
+For teams that want a complete, reusable solution, we provide a Terraform module that you can copy from [https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts](https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts)
+
+[Example module usage](https://github.com/SunRun/softsec-aws-user-access-review/blob/develop/env/dev/uar-perm-ingest/security_alerts.tf):
+
+```hcl
+# Security Logging Alerts - Development Environment
+# Using the reusable security-logging-alerts module
+
+module "security_logging_alerts" {
+  source = "../../../templates/shared/security-logging-alerts"
+  
+  service_name            = "your-service-name"
+  environment             = local.environment
+  cloudwatch_namespace    = "SecurityLogging"
+  
+  # Development settings: relaxed thresholds
+  failure_threshold_immediate = 5       # Higher threshold for dev environment
+  severity_immediate          = "sev_3" # Lower severity for dev
+  enable_sustained_alarm      = false   # No sustained alarm needed in dev
+  
+  common_tags = local.common_tags
+}
+```
+
+### Severity Level Guidelines
+
+| Environment | Immediate Threshold | Severity | Rationale |
+|-------------|-------------------|----------|-----------|
+| **Production** | 1 failure | `sev_1` | Any security logging failure in production is critical |
+| **Staging** | 2 failures | `sev_2` | Some tolerance for staging environment |
+| **Development** | 5 failures | `sev_3` | Higher tolerance for development noise |
+
+### Monitoring Best Practices
+
+1. **✅ Monitor All Environments**: Even dev failures can indicate code issues
+2. **✅ Use Dimensions**: Separate metrics by service and environment
+3. **✅ Set Appropriate Thresholds**: Strict for prod, relaxed for dev
+4. **✅ Alert the Right Teams**: Route production alerts to security/oncall teams
+5. **✅ Test Your Alarms**: Verify alerts fire correctly during testing
+
+### Security Logging Failure Scenarios
+
+Your monitoring should detect these failure types:
+
+- **SNS Publishing Failures**: Network issues, permission problems, topic unavailable
+- **AWS Credential Issues**: Expired credentials, insufficient permissions
+- **Validation Failures**: Missing required fields, invalid data formats
+- **Initialization Failures**: Security logging module setup problems
+- **Rate Limiting**: SNS throttling or quota exceeded
+
+### GitHub Actions Setup
 
 **⚠️ Important: Secret Access Request Required**
 
@@ -149,6 +804,9 @@ Before setting up GitHub Actions, you must request access to the organization se
 1. **Request Secret Access**: Post a message in the `#software-infrastructure-support` Slack channel requesting access to the `SR_SECURITY_GITHUB_ACTION_MODULES` secret for your repository
 2. **Include Repository Details**: Provide your repository name and explain that you need this secret to access the security logging submodule
 3. **Wait for Approval**: The infrastructure team will grant your repository access to this organization-level secret
+
+**📍 Note About SNS Topic Region:**
+The security logging SNS topic is located in **us-west-2**, regardless of where your application runs. AWS SNS supports cross-region publishing, so your application can publish to the us-west-2 topic even if it runs in a different region (e.g., Shanghai/ap-southeast-1). No special configuration needed - just ensure your IAM role has permissions to publish to the us-west-2 SNS topic.
 
 For Python repositories that use this library as a submodule, add this workflow to `.github/workflows/main.yml`:
 
@@ -248,295 +906,21 @@ jobs:
 - Caches Lambda builds for faster CI/CD
 - Supports both dev and prod deployments via reusable workflows
 
-### Step 6: Testing and Implementation Help
-For comprehensive implementation examples and testing of all 14 security event types, see [`test_publish.py`](test_publish.py). This test file demonstrates:
-- ✅ Proper usage of all security logging functions
-- ✅ Required field validation and examples  
-- ✅ Realistic test data with proper constants
-- ✅ Complete integration patterns
-- ✅ End-to-end SNS publishing verification
-
-Run the test: `python3 test_publish.py`
-
-### Step 7: Use in Your Code
-```python
-# Example: Log user authentication
-result = security_logging_sns.log_user_login(
-    event_type=EventType.LOGIN_SUCCESS,
-    actor_identifier="user@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-123",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="auth-service",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="production",
-    service_account_id="lambda-execution-role",
-    user_agent="Mozilla/5.0...",
-    user_role=UserRole.ADMIN,
-    status=Status.SUCCESS,
-    detail=Detail.USER_INITIATED
-)
-
-# REQUIRED: Handle failures gracefully and report metrics
-if result.get("status") == "failure":
-    security_metrics.report_failure()  # Push CloudWatch metric
-    logger.warning(f"Security logging failed: {result.get('message')}")
-```
-
-### 🚨 Key Requirements
-- ✅ **Arrays for customer_id_list**: Pass `["id1", "id2"]` not `"id1,id2"`
-- ✅ **No source_ip_address for Lambda**: Omit this field for serverless functions  
-- ✅ **Use standardized constants**: Import from `security_log_fields.py`
-- ✅ **IMPLEMENT FAILURE MONITORING**: CloudWatch alarms are mandatory for all teams
-
-## Dependencies
-Ensure you have the boto3 library installed in your Python environment.
-
-```bash
-pip install boto3
-```
-
-## ⚡ Quick Start Guide
-
-### Minimal Example
-```python
-import security_logging_sns
-from security_log_fields import *
-
-# Initialize (one time at app startup)
-security_logging_sns.init_security_logging(
-    test_mode=True  # Remove for production
-)
-
-# Log a user login
-result = security_logging_sns.log_user_login(
-    event_type=EventType.LOGIN_SUCCESS,
-    actor_identifier="user@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-123",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="web-app",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="production",
-    service_account_id="sa-logger@project.iam.gserviceaccount.com",
-    user_agent="Mozilla/5.0",
-    user_role=UserRole.ADMIN,
-    status=Status.SUCCESS,
-    detail=Detail.USER_INITIATED
-)
-
-print(result)  # {'status': 'success', 'message_content': '...'}
-```
-
-### Complete Working Example
-For a comprehensive end-to-end example showing authentication, permission changes, and error handling, see [`test_publish.py`](test_publish.py).
-
-## 🚨 **REQUIRED: Security Logging Failure Monitoring**
-
-**⚠️ CRITICAL REQUIREMENT**: All teams using this security logging library **MUST** implement CloudWatch alarms to monitor for security logging failures. Security logging failures represent a significant security risk.
-
-**Why Required:** Failed security logs create gaps in monitoring and impact incident response.
-
-### Quick Implementation Guide
-
-**High-Level Overview:**
-1. **Add metrics reporting** - Modify your code to push failure metrics to CloudWatch when security logging fails
-2. **Configure IAM permissions** - Grant your service permission to publish CloudWatch metrics  
-3. **Create CloudWatch alarms** - Set up alarms that trigger when failure metrics are detected
-4. **Set environment variables** - Configure service name and environment for proper metric dimensions
-
-**Why This Works:** When security logging fails, your application pushes a metric to CloudWatch. CloudWatch alarms monitor for these metrics and alert your team immediately, ensuring no security logging failures go unnoticed.
-
 ---
 
-#### Step 1: Add CloudWatch Metrics to Your Code
+## 📚 Appendices
 
-Add this simple metric reporting to your security logging implementation:
-
-```python
-import boto3
-from datetime import datetime, timezone
-
-class SecurityLoggingMetrics:
-    def __init__(self):
-        self.cloudwatch = boto3.client('cloudwatch')
-        self.service_name = os.environ.get('SERVICE_NAME', 'your-service-name')
-        self.namespace = os.environ.get('CLOUDWATCH_NAMESPACE', 'SecurityLogging')
-    
-    def report_failure(self):
-        """Report security logging failure (metric value = 1)"""
-        self.cloudwatch.put_metric_data(
-            Namespace=self.namespace,
-            MetricData=[{
-                'MetricName': 'log_failure',
-                'Value': 1.0,
-                'Unit': 'Count',
-                'Timestamp': datetime.now(timezone.utc),
-                'Dimensions': [
-                    {'Name': 'ServiceName', 'Value': self.service_name},
-                    {'Name': 'Environment', 'Value': os.environ.get('ENV_TYPE', 'unknown')}
-                ]
-            }]
-        )
-
-# Global metrics instance
-security_metrics = SecurityLoggingMetrics()
-
-# Use in your security logging code:
-result = security_logging_sns.log_user_login(...)
-if result.get("status") == "failure":
-    security_metrics.report_failure()  # Push failure metric
-    logger.error(f"Security logging failed: {result.get('message')}")
-```
-
-#### Step 2: Add CloudWatch Permissions
-
-Add these permissions to your Lambda/service IAM role:
-
-```hcl
-{
-  Effect = "Allow"
-  Action = ["cloudwatch:PutMetricData"]
-  Resource = "*"
-  Condition = {
-    StringEquals = {
-      "cloudwatch:namespace" = "SecurityLogging"  # Match your namespace
-    }
-  }
-}
-```
-
-#### Step 3: Create CloudWatch Alarms
-
-**Production Environment (Strict Monitoring):**
-```hcl
-resource "aws_cloudwatch_metric_alarm" "security_logging_failures" {
-  alarm_name          = "security-logging-failures-${var.service_name}-prod"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "1"
-  metric_name         = "log_failure"
-  namespace           = "SecurityLogging"
-  period              = "300"  # 5 minutes
-  statistic           = "Sum"
-  threshold           = "1"    # Any failure triggers alarm
-  alarm_description   = "SEV_1: Critical - Security logging failures detected"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ServiceName = var.service_name
-    Environment = "prod"
-  }
-
-  tags = {
-    Severity    = "sev_1"
-    AlertType   = "security_logging_failure"
-    ServiceName = var.service_name
-  }
-}
-```
-
-**Development Environment (Relaxed Monitoring):**
-```hcl
-resource "aws_cloudwatch_metric_alarm" "security_logging_failures_dev" {
-  alarm_name          = "security-logging-failures-${var.service_name}-dev"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = "2"
-  metric_name         = "log_failure"
-  namespace           = "SecurityLogging"
-  period              = "600"  # 10 minutes
-  statistic           = "Sum"
-  threshold           = "5"    # Higher threshold for dev
-  alarm_description   = "SEV_3: Security logging failures in dev environment"
-  treat_missing_data  = "notBreaching"
-
-  dimensions = {
-    ServiceName = var.service_name
-    Environment = "dev"
-  }
-
-  tags = {
-    Severity    = "sev_3"
-    AlertType   = "security_logging_failure"
-    ServiceName = var.service_name
-  }
-}
-```
-
-#### Step 4: Set Environment Variables
-
-```bash
-# Required environment variables for your Lambda/service
-SERVICE_NAME=your-service-name
-CLOUDWATCH_NAMESPACE=YourTeam/SecurityLogging  # Optional, defaults to 'SecurityLogging'
-ENV_TYPE=prod  # or 'dev', 'staging'
-```
-
-### Reusable Terraform Module (Recommended)
-
-For teams that want a complete, reusable solution, we provide a Terraform module here that you can copy paste [https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts](https://github.com/SunRun/softsec-aws-user-access-review/tree/develop/templates/shared/security-logging-alerts)
-
-[Example module usage](https://github.com/SunRun/softsec-aws-user-access-review/blob/develop/env/dev/uar-perm-ingest/security_alerts.tf):
-
-```hcl
-# Security Logging Alerts - Development Environment
-# Using the reusable security-logging-alerts module
-
-module "security_logging_alerts" {
-  source = "../../../templates/shared/security-logging-alerts"
-  
-  service_name            = "uar-permissions"
-  environment             = local.environment
-  cloudwatch_namespace    = "UAR/SecurityLogging"
-  function_name_pattern   = "uar-perm-ingest-lambda-${local.environment}"
-  
-  # Development settings: relaxed thresholds
-  failure_threshold_immediate = 5       # Higher threshold for dev environment
-  severity_immediate          = "sev_3" # Lower severity for dev
-  enable_sustained_alarm      = false   # No sustained alarm needed in dev
-  
-  common_tags = local.common_tags
-}
-```
-
-### Severity Level Guidelines
-
-| Environment | Immediate Threshold | Severity | Rationale |
-|-------------|-------------------|----------|-----------|
-| **Production** | 1 failure | `sev_1` | Any security logging failure in production is critical |
-| **Staging** | 2 failures | `sev_2` | Some tolerance for staging environment |
-| **Development** | 5 failures | `sev_3` | Higher tolerance for development noise |
-
-### Monitoring Best Practices
-
-1. **✅ Monitor All Environments**: Even dev failures can indicate code issues
-2. **✅ Use Dimensions**: Separate metrics by service and environment
-3. **✅ Set Appropriate Thresholds**: Strict for prod, relaxed for dev
-4. **✅ Alert the Right Teams**: Route production alerts to security/oncall teams
-5. **✅ Test Your Alarms**: Verify alerts fire correctly during testing
-
-### Security Logging Failure Scenarios
-
-Your monitoring should detect these failure types:
-
-- **SNS Publishing Failures**: Network issues, permission problems, topic unavailable
-- **AWS Credential Issues**: Expired credentials, insufficient permissions
-- **Validation Failures**: Missing required fields, invalid data formats
-- **Initialization Failures**: Security logging module setup problems
-- **Rate Limiting**: SNS throttling or quota exceeded
-
----
-
-## 📋 Schema Structure
+### Appendix A: Schema Structure
 
 This module implements a standardized two-part logging schema:
 
-### 1. Base Log Schema (base_log)
+#### 1. Base Log Schema (base_log)
 **Required fields for every log entry:**
 
 | Field Name | Description | Example Value | Required |
 |------------|-------------|---------------|----------|
 | `timestamp` | Event timestamp in UTC | `"2025-09-08T20:25:51.000Z"` | ✅ (auto-generated if empty) |
-| `event_type` | Dot-notation event identifier | `"authn.login.success"`, `"authz.role.assign"` | ✅ |
+| `event_type` | Dot-notation event identifier | `"login_success"`, `"permission_change"` | ✅ |
 | `log_category` | High-level event category | `"authn_n_session"` | ✅ |
 | `status` | Event outcome | `"status.general.success"` | ✅ |
 | `actor_identifier` | Unique actor identifier | `"user@company.com"` | ✅ |
@@ -550,278 +934,48 @@ This module implements a standardized two-part logging schema:
 | `source_ip_address` | Source IP address | `"203.0.113.54"` | ❌ Optional |
 | `cloud_service_api_type` | Cloud service type | `"aws_lambda"` | ❌ Optional |
 
-### 2. Event-Specific Fields (log_specifics)
+#### 2. Event-Specific Fields (log_specifics)
 Additional required fields based on the specific event type. The `detail` field provides context and uses standardized values:
 
-#### Authentication & Session Events
+##### Authentication & Session Events
 | Event Type | Required Fields | Optional Fields | Detail Field Usage |
 |------------|----------------|-----------------|-------------------|
-| **User Login** (`authn.login.success`, `authn.login.failure`) | `user_agent`, `user_role`, `detail` | `device_id` | Success: "1st time login", "login with a successful MFA"<br>Failure: `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
-| **MFA Challenge** (`authn.mfa.challenge_success`, `authn.mfa.challenge_failure`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
-| **User Logout** (`authn.logout.*`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
+| **User Login** (`login_success`, `login_failure`) | `user_agent`, `user_role`, `detail` | `device_id` | Success: "1st time login", "login with a successful MFA"<br>Failure: `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
+| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
+| **User Logout** (`user_logout`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
 
-#### Authorization & Access Events
+##### Authorization & Access Events
 | Event Type | Required Fields | Detail Field Usage |
 |------------|----------------|-------------------|
-| **Permission/Role/Group Change** (`authz.permission.*`, `authz.role.*`, `authz.group_membership.*`) | `target_user_identifier`, `object_changed`, `previous_value`, `new_value` | N/A |
-| **User Status Change** (`authz.user.status_*`) | `target_user_identifier`, `detail` | `detail.trigger.admin_initiated`, `detail.trigger.system_policy_violation` |
-| **Impersonation** (`authz.impersonation.*`) | `target_user_identifier` | N/A |
-| **User Invite** (`authz.invite.*`) | `target_user_email`, `assigned_role`, `invite_status` | N/A |
+| **Permission/Role/Group Change** (`permission_change`) | `target_user_identifier`, `object_changed`, `previous_value`, `new_value` | N/A |
+| **User Status Change** (`user_status_change`) | `target_user_identifier`, `detail` | `detail.trigger.admin_initiated`, `detail.trigger.system_policy_violation` |
+| **Impersonation** (`impersonation_event`) | `target_user_identifier` | N/A |
+| **User Invite** (`user_invite_event`) | `target_user_email`, `assigned_role`, `invite_status` | N/A |
 
-#### API Endpoint Access Events
+##### API Endpoint Access Events
 | Event Type | Required Fields | Detail Field Usage |
 |------------|----------------|-------------------|
-| **API Request** (`api.request.success`, `api.request.failure`) | `auth_protocol`, `endpoint_path`, `http_method`, `endpoint_sensitivity`, `detail` | Success: "Successful API call"<br>Failure: `detail.auth.token_expired`, `detail.client.invalid_request` |
+| **API Request** (`api_request_processed`) | `auth_protocol`, `endpoint_path`, `http_method`, `endpoint_sensitivity`, `detail` | Success: "Successful API call"<br>Failure: `detail.auth.token_expired`, `detail.client.invalid_request` |
 
-#### Customer Data Actions Events
+##### Customer Data Actions Events
 | Event Type | Required Fields |
 |------------|----------------|
-| **Multi-Record Actions** (`data.customer.list.*`, `data.report.*`) | `endpoint_path`, `data_sensitivity_level`, `record_count`, `customer_id_list` |
-| **Single-Record Actions** (`data.customer.record.*`) | `customer_id`, `fields_accessed` |
+| **Multi-Record Actions** (`multi_record_access`) | `endpoint_path`, `data_sensitivity_level`, `record_count`, `customer_id_list` |
+| **Single-Record Actions** (`single_record_access`) | `customer_id`, `fields_accessed` |
 
-#### Key Configuration Changes Events
+##### Key Configuration Changes Events
 | Event Type | Required Fields |
 |------------|----------------|
-| **MFA Status Change** (`authn.mfa.status_*`, `authn.mfa.device_*`) | `target_object`, `mfa_id` |
-| **Password Change/Reset** (`authn.password.*`) | `target_object` |
-| **API Key Lifecycle** (`api_key.*`) | `target_object` |
-| **Auth Mechanism Modification** (`authn.sso.config_*`, `authn.local_auth.config_*`) | `target_object` |
+| **MFA Status Change** (`mfa_status_change`) | `target_object`, `mfa_id` |
+| **Password Change/Reset** (`password_change_reset`) | `target_object` |
+| **API Key Lifecycle** (`api_key_lifecycle`) | `target_object` |
+| **Auth Mechanism Modification** (`auth_mechanism_modification`) | `target_object` |
 
-### 🛡️ Validation & Error Handling
-
-The module provides comprehensive validation:
-
-1. **Crash-Safe**: All function parameters have empty string defaults
-2. **Base Field Validation**: Returns failure message if required base_log fields are missing
-3. **Event-Specific Validation**: Returns failure message if required log_specifics fields are missing
-4. **Never Crashes**: Invalid calls return `{"status": "failure", "message": "..."}` instead of throwing exceptions
-
-**Example validation failure:**
-```python
-# Missing required fields
-result = security_logging_sns.log_user_login(
-    actor_identifier="user@company.com"
-    # Missing other required fields
-)
-# Returns: {"status": "failure", "message": "Required base_log fields missing: actor_type, session_id, cloud_env_type, service_name, cloud_env_unique_id, cloud_env_name, service_account_id"}
-```
-
-## 🔧 Configuration Options
-
-### Initialization Parameters
-
-```python
-# Production initialization
-security_logging_sns.init_security_logging()
-
-# Development/Testing only
-security_logging_sns.init_security_logging(
-    test_mode=True  # Prints to console instead of sending to security team
-)
-```
-
-| Parameter | Type | Required | Description | Default |
-|-----------|------|----------|-------------|---------|
-| `test_mode` | bool | No | Enable test mode (prints to console, no security logging) | `False` |
-
-**🔒 Security First**: Pre-configured for centralized security monitoring. No configuration required for production use.
-
-### Environment Variables
-
-| Variable | Description | Example |
-|----------|-------------|---------|  
-| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `YOUR_ACCESS_KEY_ID` |
-| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `YOUR_SECRET_ACCESS_KEY` |
-
-### AWS Permissions Required
-
-Your application's IAM role or user needs the following permission for security logging:
-
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "sns:Publish"
-            ],
-            "Resource": "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
-        }
-    ]
-}
-```
-
-## 📝 Key Function Examples
-
-### User Login
-```python
-result = security_logging_sns.log_user_login(
-    event_type=EventType.LOGIN_SUCCESS,
-    actor_identifier="alice@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-xyz789",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="user-management-api",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
-    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-    user_role=UserRole.ADMIN,
-    status=Status.SUCCESS,
-    source_ip_address="192.168.1.100",
-    detail=Detail.USER_INITIATED
-)
-```
-
-### API Request
-```python
-result = security_logging_sns.log_api_request(
-    event_type=EventType.API_REQUEST_PROCESSED,
-    actor_identifier="api_client_123",
-    actor_type=ActorType.SERVICE_PARTNER,
-    session_id="session-api-456",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="api-gateway",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-api@project.iam.gserviceaccount.com",
-    auth_protocol=AuthProtocol.API_KEY,
-    endpoint_path="/api/v1/customers",
-    http_method=HttpMethod.GET,
-    authorization_status=Status.SUCCESS,
-    endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL,
-    source_ip_address="203.0.113.54"
-)
-```
-
-### Permission Change
-```python
-result = security_logging_sns.log_permission_change(
-    actor_identifier="admin@company.com",
-    actor_type=ActorType.HUMAN_INTERNAL,
-    session_id="session-admin-perm",
-    cloud_env_type=CloudEnvType.PROD,
-    service_name="user-management-api",
-    cloud_env_unique_id="123456789012",
-    cloud_env_name="prod-us-east-1",
-    service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
-    target_user_identifier="newuser@company.com",
-    permission_name="Role",
-    change_type="granted",
-    source_ip_address="10.0.1.25"
-)
-```
-
-> **📝 Note**: For complete examples of all 14 available functions, see [`test_publish.py`](test_publish.py).
-
-
-
-## 📚 API Reference
-
-### Available Functions
-The library provides 14 security logging functions covering:
-- **Authentication & Session**: `log_user_login()`, `log_mfa_challenge()`, `log_user_logout()`
-- **Authorization & Access**: `log_permission_change()`, `log_user_status_change()`, `log_impersonation_event()`, `log_user_invite_event()`
-- **API & Data Access**: `log_api_request()`, `log_multi_record_access()`, `log_single_record_access()`
-- **Key Management**: `log_mfa_status_change()`, `log_password_change_reset()`, `log_api_key_lifecycle()`, `log_auth_mechanism_modification()`
-
-### Function Signature
-All functions follow this pattern:
-```python
-def log_function_name(
-    # Base log parameters (required for all functions)
-    actor_identifier="",
-    actor_type="", 
-    session_id="",
-    cloud_env_type="",
-    service_name="",
-    cloud_env_unique_id="",
-    cloud_env_name="",
-    service_account_id="",
-    detail="",
-    # Event-specific parameters (vary by function)
-    # Optional parameters
-    source_ip_address="",
-):
-    return {"status": "success|failure", "message": "..."}
-```
-
-**For detailed parameter lists and examples, see:**
-- Function examples above
-- [`test_publish.py`](test_publish.py) for complete usage
-- [`security_log_fields.py`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py) for field definitions
-
-## ⚠️ Error Handling
-
-All logging functions return a dictionary with the following structure:
-
-**Success:**
-```python
-{
-    "status": "success",
-    "message_content": "{...json log data...}",  # Only in test mode
-    "test_mode": True  # Only in test mode
-}
-```
-
-**Failure:**
-```python
-{
-    "status": "failure",
-    "message": "Description of what went wrong"
-}
-```
-
-**Best Practices:**
-```python
-# ✅ Good - Check result and handle failures
-result = security_logging_sns.log_user_login(...)
-if result["status"] == "failure":
-    security_metrics.report_failure()  # Push CloudWatch metric
-    app_logger.error(f"Security logging failed: {result['message']}")
-
-# ✅ Good - Use constants from security_log_fields
-from security_log_fields import ActorType, UserRole, Detail
-
-result = security_logging_sns.log_user_login(
-    actor_type=ActorType.HUMAN_INTERNAL,
-    user_role=UserRole.ADMIN,
-    detail=Detail.INVALID_CREDENTIALS
-)
-```
-
-**Common Issues:**
-- **Initialization**: Call `init_security_logging()` before using any logging functions
-- **Missing Fields**: Provide all required fields with non-empty values
-- **Invalid Values**: Use constants from `security_log_fields.py`
-- **AWS Errors**: Check credentials, permissions, and SNS topic existence
-
-## 🧪 Testing & Development
-
-### Running Tests
-```bash
-# Unit tests (no AWS credentials required)
-cd test/
-python3 -m unittest test_security_logging -v
-
-# End-to-end testing with examples
-python3 test_publish.py
-```
-
-### Test Coverage
-The unit tests cover:
-- ✅ **Core Functions**: User login, API request, and other logging functions
-- ✅ **Initialization**: Proper setup in test mode
-- ✅ **Error Handling**: Missing fields and invalid values handled gracefully
-- ✅ **Validation**: Standardized field validation
-
-
-## 📄 Sample Log Outputs
+### Appendix B: Sample Log Outputs
 
 This section shows the exact JSON structure that gets sent to your SNS topic for key security event types. All examples use current standardized values and schema.
 
-### User Login Success
+#### User Login Success
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691207+00:00",
@@ -840,12 +994,12 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "cloud_service_api_type": "aws_lambda",
   "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
   "user_role": "role.classification.admin",
-  "detail": "detail.trigger.user_initiated",
+  "detail": "First time login from new device",
   "device_id": "device-123"
 }
 ```
 
-### User Login Failure
+#### User Login Failure
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691761+00:00",
@@ -869,11 +1023,11 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 }
 ```
 
-### API Request Success
+#### API Request Success
 ```json
 {
   "timestamp": "2025-09-09T19:39:11.728000+00:00",
-  "event_type": "api.request.success",
+  "event_type": "api_request_processed",
   "log_category": "api_endpoint_access",
   "status": "status.general.success",
   "actor_identifier": "api-client-xyz",
@@ -890,82 +1044,158 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "endpoint_path": "/api/v1/users/profile",
   "http_method": "http.method.GET",
   "endpoint_sensitivity": "sensitivity.level.confidential",
-  "detail": "detail.not_applicable"
+  "detail": "Successful API call"
 }
 ```
 
-### Permission Change (Role Assignment)
+> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`example_publish.py`](example_publish.py).
+
+### Appendix C: Troubleshooting
+
+#### Common Issues
+1. **Import Errors**: Ensure all files are in the same directory or Python path
+2. **AWS Credentials**: Check IAM permissions and credential configuration
+3. **Validation Failures**: Use constants from `security_log_fields.py`
+4. **Test Failures**: Run `python3 -m pip install -r test/requirements-test.txt`
+5. **Security Logging Errors**: Ensure your application has the required SNS publish permissions
+
+#### Error Handling
+All logging functions return a dictionary with the following structure:
+
+**Success:**
+```python
+{
+    "status": "success",
+    "message_content": "{...json log data...}",  # Only in test mode
+    "test_mode": True  # Only in test mode
+}
+```
+
+**Failure:**
+```python
+{
+    "status": "failure",
+    "message": "Description of what went wrong"
+}
+```
+
+**Best Practices:**
+```python
+# ✅ Good - Check result and handle failures
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(SecurityLogging.log_user_login, ...)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+
+# ✅ Good - Use constants from security_log_fields
+result = SecurityLogging.log_user_login(
+    actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+    user_role=SecurityLogging.UserRole.ADMIN,
+    detail=SecurityLogging.Detail.INVALID_CREDENTIALS
+)
+```
+
+#### Validation & Error Handling
+
+The module provides comprehensive validation:
+
+1. **Crash-Safe**: All function parameters have empty string defaults
+2. **Base Field Validation**: Returns failure message if required base_log fields are missing
+3. **Event-Specific Validation**: Returns failure message if required log_specifics fields are missing
+4. **Never Crashes**: Invalid calls return `{"status": "failure", "message": "..."}` instead of throwing exceptions
+
+**Example validation failure:**
+```python
+# Missing required fields
+result = SecurityLogging.log_user_login(
+    actor_identifier="user@company.com"
+    # Missing other required fields
+)
+# Returns: {"status": "failure", "message": "Required fields missing: actor_type, session_id, cloud_env_type, service_name, cloud_env_unique_id, cloud_env_name, service_account_id"}
+```
+
+### Appendix D: Module Structure
+
+```
+sr-sec-py-sns-logger/
+├── __init__.py                    # Main module exports
+├── security_logging_sns.py        # Core logging functions
+├── security_log_fields.py         # Field constants and validation
+├── sns_publisher.py              # AWS SNS publishing logic
+├── example_publish.py            # Production-ready examples
+├── test/
+│   ├── test_security_logging.py  # Unit tests
+│   ├── pytest.ini               # Test configuration
+│   └── requirements-test.txt     # Test dependencies
+└── README.md                     # This documentation
+```
+
+### Appendix E: Testing & Development
+
+#### Running Tests
+```bash
+# Unit tests (no AWS credentials required)
+cd test/
+python3 -m unittest test_security_logging -v
+
+# End-to-end testing with examples
+python3 example_publish.py
+```
+
+#### Test Coverage
+The unit tests cover:
+- ✅ **Core Functions**: User login, API request, and other logging functions
+- ✅ **Initialization**: Proper setup in test mode
+- ✅ **Error Handling**: Missing fields and invalid values handled gracefully
+- ✅ **Validation**: Standardized field validation
+- ✅ **Fire-and-Forget**: Non-blocking behavior, error handling, concurrent usage
+
+### Appendix F: Configuration Options
+
+#### Initialization Parameters
+
+```python
+# Production initialization
+SecurityLogging.init_security_logging()
+
+# Development/Testing only
+SecurityLogging.init_security_logging(
+    test_mode=True  # Prints to console instead of sending to security team
+)
+```
+
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| `test_mode` | bool | No | Enable test mode (prints to console, no security logging) | `False` |
+
+**🔒 Security First**: Pre-configured for centralized security monitoring. No configuration required for production use.
+
+#### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|  
+| `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `YOUR_ACCESS_KEY_ID` |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `YOUR_SECRET_ACCESS_KEY` |
+
+#### AWS Permissions Required
+
+Your application's IAM role or user needs the following permission for security logging:
+
 ```json
 {
-  "timestamp": "2025-09-09T19:39:11.729000+00:00",
-  "event_type": "authz.role.assign",
-  "log_category": "authz_n_access",
-  "status": "status.general.success",
-  "actor_identifier": "admin@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-admin-002",
-  "cloud_env_type": "prod",
-  "service_name": "user-management",
-  "cloud_env_unique_id": "999888777666",
-  "cloud_env_name": "production-mgmt",
-  "service_account_id": "sa-mgmt@project.iam.gserviceaccount.com",
-  "target_user_identifier": "alice@company.com",
-  "object_changed": "Role",
-  "previous_value": "developer",
-  "new_value": "senior_developer",
-  "detail": "detail.trigger.admin_initiated"
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sns:Publish"
+            ],
+            "Resource": "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
+        }
+    ]
 }
 ```
 
-### Single Customer Record Access
-```json
-{
-  "timestamp": "2025-09-09T19:39:11.731000+00:00",
-  "event_type": "data.customer.record.view",
-  "log_category": "customer_data_actions",
-  "status": "status.general.success",
-  "actor_identifier": "alice@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-xyz789",
-  "cloud_env_type": "prod",
-  "service_name": "customer-api",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-customer-api@project.iam.gserviceaccount.com",
-  "source_ip_address": "192.168.1.100",
-  "cloud_service_api_type": "aws_lambda",
-  "customer_id": "customer-12345",
-  "fields_accessed": ["name", "email", "phone"],
-  "detail": "detail.not_applicable"
-}
-```
-
-### Multi-Record Data Access
-```json
-{
-  "timestamp": "2025-09-09T22:55:22.444596+00:00",
-  "event_type": "data.report.export",
-  "log_category": "customer_data_actions",
-  "status": "status.general.success",
-  "actor_identifier": "analyst@company.com",
-  "actor_type": "actor.human.internal",
-  "session_id": "session-analyst-001",
-  "cloud_env_type": "prod",
-  "service_name": "data-service",
-  "cloud_env_unique_id": "123456789012",
-  "cloud_env_name": "prod-us-east-1",
-  "service_account_id": "sa-data@project.iam.gserviceaccount.com",
-  "source_ip_address": "192.168.2.100",
-  "cloud_service_api_type": "gke_namespace",
-  "endpoint_path": "/api/v1/customers/bulk-export",
-  "data_sensitivity_level": "sensitivity.level.pii_basic",
-  "record_count": "250",
-  "customer_id_list": "['cust-001', 'cust-002', 'cust-003']",
-  "detail": "detail.not_applicable"
-}
-```
-
-> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`test_publish.py`](test_publish.py).
+---
 
 ## 🚀 **Requesting New Features & Field Values**
 
@@ -1001,16 +1231,9 @@ If you need additional event types, field values, or functionality that isn't cu
 
 ## 📞 Support & Contact
 
-### Common Issues
-1. **Import Errors**: Ensure all files are in the same directory or Python path
-2. **AWS Credentials**: Check IAM permissions and credential configuration
-3. **Validation Failures**: Use constants from `security_log_fields.py`
-4. **Test Failures**: Run `python3 -m pip install -r test/requirements-test.txt`
-5. **Security Logging Errors**: Ensure your application has the required SNS publish permissions
-
 ### Getting Help
 - **Documentation**: This README contains comprehensive usage information
-- **Examples**: See `test_logging.py` for working integration examples
+- **Examples**: See `example_publish.py` for working integration examples
 - **Unit Tests**: `test_security_logging.py` shows expected behavior for all functions
 - **Error Messages**: All validation errors include specific guidance on fixing issues
 
@@ -1018,42 +1241,9 @@ If you need additional event types, field values, or functionality that isn't cu
 For internal support and questions:
 - Check this documentation first - it's comprehensive
 - Review the unit tests for expected behavior examples
-- Run `python3 test_logging.py` to see working integration examples
+- Run `python3 example_publish.py` to see working integration examples
 - Use test mode (`test_mode=True`) for debugging without AWS credentials
-
-
-
-*This documentation is comprehensive and designed to enable full understanding and implementation of the security logging module. For additional questions or clarifications, refer to the code comments and unit tests which serve as the definitive specification.*
 
 ---
 
-## 📚 Appendix: Why We Don't Extract Base Logs from React Logs
-
-While it might seem efficient to extract security events from existing React application logs, this approach creates significant challenges:
-
-### **🚫 Key Issues with React Log Extraction:**
-
-1. **Lack of Uniformity**: Each React application uses different logging libraries, formats, and conventions
-2. **Processing Overhead**: Would require sophisticated parsing logic for each application's unique log format
-3. **Security Risks**: React logs rarely contain all required security logging fields
-4. **Data Integrity**: Important security context may be lost during extraction
-5. **Maintenance Burden**: Each application change could break the extraction logic
-
-```javascript
-// Example of inconsistent React logging patterns:
-
-// Application A - Custom logger
-logger.info(`User ${userId} accessed ${resource}`, { timestamp: Date.now() });
-
-// Application B - Console logging  
-console.log('LOGIN:', user.email, 'SUCCESS', new Date().toISOString());
-
-// Application C - Structured logging
-log.event('user.login', { user: user.id, status: 'success', ip: req.ip });
-```
-
-### **🎯 Recommendation**
-
-**Always implement direct security logging using this framework rather than attempting to extract security events from application logs.** The initial integration effort is minimal compared to the ongoing complexity and reliability issues of log extraction approaches.
-
-For applications that already have extensive logging, use this security logging framework **in addition to** (not instead of) existing application logs. Application logs serve debugging and operational purposes, while security logs serve compliance and security monitoring purposes.
+*This documentation is comprehensive and designed to enable full understanding and implementation of the security logging module. For additional questions or clarifications, refer to the code comments and unit tests which serve as the definitive specification.*

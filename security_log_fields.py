@@ -5,14 +5,36 @@ class Status:
     SUCCESS = "status.general.success"
     FAILURE = "status.general.failure"
 
-# Actor types using the new standardized format
+"""
+Actor types define WHO or WHAT is performing the action
+
+Choose the type that best matches the entity initiating the event:
+- HUMAN: A person directly interacting with the system
+- SERVICE: An application, microservice, or automated agent acting on behalf of someone
+- SYSTEM: The application itself performing automated actions
+
+Then specify the relationship (INTERNAL/PARTNER/CUSTOMER)
+"""
 class ActorType:
+    # Sunrun employee or contractor (e.g., admin, developer, support rep)
     HUMAN_INTERNAL = "actor.human.internal"
+    
+    # Partner organization employee (e.g., installer, vendor user)
     HUMAN_PARTNER = "actor.human.partner"
+    
+    # Sunrun customer or homeowner
     HUMAN_CUSTOMER = "actor.human.customer"
+    
+    # Internal Sunrun service/microservice acting on behalf of a user (e.g., API gateway, auth service, backend job)
     SERVICE_INTERNAL = "actor.service.internal"
+    
+    # Partner's service or API integration acting on behalf of their users (e.g., partner's mobile app, third-party system)
     SERVICE_PARTNER = "actor.service.partner"
+    
+    # Customer-owned service or application (e.g., customer's home automation system making API calls)
     SERVICE_CUSTOMER = "actor.service.customer"
+    
+    # The application itself performing scheduled/automated tasks with no external trigger (e.g., cron jobs, cleanup tasks, system maintenance)
     SYSTEM_SELF = "actor.system.self"
 
 # Log categories
