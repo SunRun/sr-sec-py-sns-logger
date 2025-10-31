@@ -9,7 +9,7 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - 🧪 **Test Mode**: Test without AWS credentials for development and validation
 - 📦 **Simple API**: One-line initialization, clean function calls
 - 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
-- 📋 **Schema Compliant**: Implements standardized base_log + log_specifics structure
+- 📋 **Schema Compliant**: Implements standardized flat JSON structure with all required security fields
 - ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
 
 ---
@@ -912,9 +912,9 @@ jobs:
 
 ### Appendix A: Schema Structure
 
-This module implements a standardized two-part logging schema:
+This module implements a standardized flat JSON schema where all fields are at the same level:
 
-#### 1. Base Log Schema (base_log)
+#### Standard Fields
 **Required fields for every log entry:**
 
 | Field Name | Description | Example Value | Required |
@@ -934,7 +934,7 @@ This module implements a standardized two-part logging schema:
 | `source_ip_address` | Source IP address | `"203.0.113.54"` | ❌ Optional |
 | `cloud_service_api_type` | Cloud service type | `"aws_lambda"` | ❌ Optional |
 
-#### 2. Event-Specific Fields (log_specifics)
+#### Event-Specific Fields
 Additional required fields based on the specific event type. The `detail` field provides context and uses standardized values:
 
 ##### Authentication & Session Events
@@ -1099,8 +1099,8 @@ result = SecurityLogging.log_user_login(
 The module provides comprehensive validation:
 
 1. **Crash-Safe**: All function parameters have empty string defaults
-2. **Base Field Validation**: Returns failure message if required base_log fields are missing
-3. **Event-Specific Validation**: Returns failure message if required log_specifics fields are missing
+2. **Standard Field Validation**: Returns failure message if required standard fields are missing
+3. **Event-Specific Validation**: Returns failure message if required event-specific fields are missing
 4. **Never Crashes**: Invalid calls return `{"status": "failure", "message": "..."}` instead of throwing exceptions
 
 **Example validation failure:**
