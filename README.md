@@ -1,6 +1,6 @@
-# sr-sec-py-sns-logger
+# sr-sec-py-sns-logger: Developer Implementation Guide
 
-A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This library ensures all security events are consistently formatted and delivered to your security logging pipeline with comprehensive validation.
+A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This guide takes you from initial setup to a fully instrumented, production-ready implementation.
 
 **Key Features:**
 - 🔒 **Security-First**: Designed specifically for security event logging
@@ -11,6 +11,49 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
 - 📋 **Schema Compliant**: Implements standardized flat JSON structure with all required security fields
 - ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
+
+---
+
+## 📑 Table of Contents
+
+### Getting Started
+1. [Why Security Logging Matters](#-why-security-logging-matters)
+
+### Part 1: Quick Start (5-Minute Goal)
+2. [Install and Setup](#step-1-install-and-setup)
+3. [Initialize the Logger](#step-2-initialize-the-logger)
+4. [Log Your First Event](#step-3-log-your-first-event)
+
+### Before Production Implementation
+5. [The Developer's Mindset](#-the-developers-mindset-guidance-and-principles)
+6. [Prerequisites: Review Required](#-prerequisites-review-required)
+7. [Request SNS Permissions](#-request-sns-permissions)
+
+### Part 2: The Implementation Playbook
+8. [Identify Security-Relevant Activities](#step-1-identify-security-relevant-activities)
+9. [Map Activities to Logger Functions](#step-2-map-your-activities-to-logger-events)
+10. [Track Your Implementation Progress](#step-3-track-your-implementation-progress)
+
+### Part 3: API Function Reference
+11. [Authentication & Session Events](#authentication--session-events)
+12. [Authorization & Access Events](#authorization--access-events)
+13. [API & Data Access Events](#api--data-access-events)
+14. [Key Configuration & Security Changes](#key-configuration--security-changes)
+
+### Part 4: Production Readiness
+15. [GitHub Actions CI/CD Setup](#github-actions-cicd-setup)
+16. [AWS IAM Permissions](#aws-iam-permissions)
+17. [REQUIRED: Failure Monitoring](#required-failure-monitoring)
+18. [Configuration Options](#configuration-options)
+
+### Appendix
+19. [Schema Structure & Fields](#appendix-a-schema-structure--fields)
+20. [Sample Log Outputs](#appendix-b-sample-log-outputs)
+21. [Migration from TypeScript Version](#appendix-c-migration-from-typescript-version)
+22. [Error Handling & Troubleshooting](#appendix-d-error-handling--troubleshooting)
+23. [Module Structure](#appendix-e-module-structure)
+24. [Python Support](#appendix-f-python-support)
+25. [Testing & Development](#appendix-g-testing--development)
 
 ---
 
@@ -40,24 +83,209 @@ Without proper security logging, organizations operate blind to internal threats
 
 ---
 
-## 📋 Part 1: Quick Start
+# Part 1: Quick Start (5-Minute Goal)
 
-### The Developer's Mindset
+This section's goal is to verify your setup and send your first log. We will log a simple user login event to confirm that the pipeline is working correctly.
 
-Before diving into implementation, it's important to understand the philosophy behind effective security logging:
+## Step 1: Install and Setup
 
-**🧠 Think, Don't Just Apply**
-Templates and examples are guides, not blind scripts. Every application is unique, and you need to thoughtfully map your specific business logic to the appropriate security events. Don't just copy-paste—understand what each event represents and when it should be triggered.
+Install the package using pip:
 
-**🎯 Know Your Endpoints**
-You are responsible for understanding the sensitivity of the data your endpoints handle. The framework provides classifications (Public, Internal, Confidential, PII), but you must determine which classification applies to each of your endpoints based on the data they access or modify.
+```bash
+pip install sr-sec-py-sns-logger
+```
 
-**🛡️ Security is Your Responsibility**
-Developers are the primary implementers of security controls in modern applications. This logging framework is a tool to help you build secure applications with proper visibility, but the responsibility for implementing it correctly lies with you.
+### Install Dependencies in Your Application
 
-The framework is designed to make security logging easier and more consistent, but it cannot replace thoughtful security implementation.
+Ensure you have the AWS SDK installed:
 
-### Prerequisites: Review Required
+```bash
+pip install boto3
+```
+
+---
+
+## Step 2: Initialize the Logger
+
+In your application's main entry point (e.g., `app.py`, `main.py`), initialize the logger **once**. 
+
+**⚠️ CRITICAL**: For all development and testing, use `test_mode=True`. This prints logs to the console instead of sending them to the security team's AWS SNS topic.
+
+```python
+import sr_sec_py_sns_logger as SecurityLogging
+
+# Initialize once at application startup
+SecurityLogging.init_security_logging(test_mode=True)  # Use test_mode for all non-production
+
+print('✅ Security logging initialized.')
+```
+
+**Production Configuration:**
+```python
+# In production, simply call without parameters
+SecurityLogging.init_security_logging()
+```
+
+---
+
+## Step 3: Log Your First Event
+
+Now that the logger is initialized, it's time to add your first security log. This step will guide you through identifying where to instrument your code and understanding where each value comes from.
+
+### 📍 Step 3a: Locate Your Login Handler
+
+First, identify where user authentication happens in your application. Common locations include:
+
+- **Flask/Django**: Login route handler (e.g., `POST /auth/login`)
+- **FastAPI**: Authentication endpoint or dependency
+- **AWS Lambda**: Authorization/authentication Lambda functions
+- **Other frameworks**: Wherever your application verifies credentials and creates a session
+
+### 📖 Step 3b: Review the log_user_login Function
+
+Before implementing, review the `log_user_login` function definition to understand all available parameters:
+
+👉 **[View log_user_login in security_logging_sns.py](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py)** (Search for "Authentication & Session Events")
+
+This shows you:
+- Required vs optional parameters
+- Validation rules
+- Expected data types
+- Available constants
+
+### 💡 Step 3c: Understand Where Values Come From
+
+Before writing code, map out where you'll get each required value:
+
+| Parameter | Where to Find It | Example Source |
+|-----------|-----------------|----------------|
+| `actor_identifier` | User's email/username from your auth system | `user.email`, `session['user_email']`, decoded JWT `sub` |
+| `actor_type` | Type of user logging in | `ActorType.HUMAN_INTERNAL` for employees, `ActorType.HUMAN_CUSTOMER` for customers |
+| `session_id` | Session ID from your session management | `session.sid`, `request.session.session_key`, JWT `jti` |
+| `user_agent` | HTTP request headers | `request.headers.get('User-Agent')` |
+| `user_role` | User's role/permission level | Map your app's roles to `UserRole` constants |
+| `cloud_env_unique_id` | AWS Account ID or GCP Project ID | Environment variable, hardcoded per environment |
+| `service_account_id` | IAM role/service account running your code | Lambda execution role name, ECS task role, etc. |
+
+**⚠️ Tip**: If you need to decode/extract values (e.g., from a JWT token), do this **before** calling the logging function.
+
+### 📝 Step 3d: Implementation Example
+
+Here's a complete example showing how to integrate security logging into a Flask login route:
+
+```python
+import sr_sec_py_sns_logger as SecurityLogging
+from security_log_fields import *
+from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, request, session
+
+app = Flask(__name__)
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        # Your existing authentication logic
+        email = request.json.get('email')
+        password = request.json.get('password')
+        user = authenticate_user(email, password)
+        
+        if not user:
+            # Log failed login attempt (fire-and-forget, won't block response)
+            with ThreadPoolExecutor() as executor:
+                future = executor.submit(SecurityLogging.log_user_login,
+                    actor_identifier=email,                          # ← Email from login form
+                    actor_type=ActorType.HUMAN_INTERNAL,
+                    session_id=session.sid,                          # ← From Flask session
+                    cloud_env_type=CloudEnvType.PROD,
+                    service_name="api-server",
+                    cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
+                    cloud_env_name="production",
+                    service_account_id="ecs-task-role",
+                    
+                    event_type=EventType.LOGIN_FAILURE,              # ← Failed login
+                    status=Status.FAILURE,
+                    user_agent=request.headers.get('User-Agent'),    # ← From Flask request
+                    user_role=UserRole.UNKNOWN,                      # ← Unknown for failed login
+                    detail=Detail.INVALID_CREDENTIALS,
+                )
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_FAILURE)
+            
+            return {'error': 'Invalid credentials'}, 401
+        
+        # Log successful login (fire-and-forget, won't block response)
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(SecurityLogging.log_user_login,
+                actor_identifier=user.email,                       # ← From authenticated user object
+                actor_type=ActorType.HUMAN_INTERNAL,
+                session_id=session.sid,
+                cloud_env_type=CloudEnvType.PROD,
+                service_name="api-server",
+                cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
+                cloud_env_name="production",
+                service_account_id="ecs-task-role",
+                
+                event_type=EventType.LOGIN_SUCCESS,
+                status=Status.SUCCESS,
+                user_agent=request.headers.get('User-Agent'),
+                user_role=UserRole.ADMIN if user.role == 'admin'    # ← Map your role to constants
+                          else UserRole.STANDARD_USER,
+                detail=Detail.USER_INITIATED,
+            )
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+        
+        return {'success': True, 'user': user.email}
+        
+    except Exception as error:
+        print(f'Login error: {error}')
+        return {'error': 'Server error'}, 500
+```
+
+### ✅ Verify It Works
+
+Run your application in development mode (with `test_mode=True`) and trigger a login. You should see the security log printed to your console:
+
+```json
+{
+  "timestamp": "2024-10-31T20:15:30.123456+00:00",
+  "event_type": "login_success",
+  "log_category": "authn_n_session",
+  "status": "status.general.success",
+  "actor_identifier": "user@company.com",
+  "actor_type": "actor.human.internal",
+  "session_id": "session-abc-123",
+  "cloud_env_type": "prod",
+  "service_name": "api-server",
+  "cloud_env_unique_id": "123456789012",
+  "cloud_env_name": "production",
+  "service_account_id": "ecs-task-role",
+  "source_ip_address": "",
+  "cloud_service_api_type": "",
+  "user_agent": "Mozilla/5.0...",
+  "user_role": "role.classification.admin",
+  "detail": "detail.trigger.user_initiated",
+  "device_id": ""
+}
+```
+
+**🎉 Congratulations!** You've sent your first security log. The infrastructure is working. Now, let's move on to instrumenting your entire application.
+
+---
+
+# Before Production Implementation
+
+## 🧠 The Developer's Mindset: Guidance and Principles
+
+Implementing this framework requires more than just copying code. As an engineer, you possess the most intricate knowledge of your application. Adopting this standard effectively requires a thoughtful approach.
+
+**Think, Don't Just Apply**: Use these templates as a guide, not a blind script. Question assumptions about your application's logic. For example, how does your service handle different user types or authentication workflows? Your implementation must reflect this context.
+
+**Know Your Endpoints**: You are responsible for understanding the data sensitivity of your application's endpoints. Avoid mislabeling logs by correctly identifying the type and sensitivity of the data being accessed.
+
+**Security is Your Responsibility**: Developers are the primary security implementers. This framework is a tool to help you build more secure applications by providing visibility into critical events.
+
+---
+
+## 📋 Prerequisites: Review Required
 
 **⚠️ MANDATORY REQUIREMENT**: Before implementing any security logging functions, you **MUST** thoroughly review both the standardized field definitions and the organizational logging framework:
 
