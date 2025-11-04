@@ -1,8 +1,11 @@
 # File: security_logging_sns.py
 
 import os
+import sys
+import threading
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Callable
+from concurrent.futures import ThreadPoolExecutor, Future
 from security_log_fields import (
     Status, ActorType, LogCategory, EventType, AuthProtocol, Detail, MfaType,
     HttpMethod, CloudEnvType, CloudServiceApiType, DataSensitivityLevel,
@@ -12,6 +15,9 @@ from sns_publisher import SNSPublisher
 
 # Global SNS publisher instance - initialized once per application
 _sns_publisher: Optional[SNSPublisher] = None
+
+# Global error handler for fire-and-forget logging
+_error_handler = None
 
 def init_security_logging(topic_arn: str = None, region_name: str = None, test_mode: bool = False):
     """
@@ -50,6 +56,70 @@ def _get_publisher() -> SNSPublisher:
     if _sns_publisher is None:
         raise RuntimeError("Security logging not initialized. Call init_security_logging() first.")
     return _sns_publisher
+
+# ==================================
+# == Fire-and-Forget Functionality
+# ==================================
+
+def set_security_logging_error_handler(handler: Callable[[str, Optional[str]], None]) -> None:
+    """
+    Set a custom error handler for fire-and-forget logging failures.
+    Use this to emit CloudWatch metrics, write to logs, etc.
+    
+    Args:
+        handler: Function that takes (error_message, event_type) and handles the error
+    
+    Example:
+        def my_error_handler(error_msg, event_type):
+            print(f"Security logging failed for {event_type}: {error_msg}")
+            cloudwatch.put_metric('SecurityLoggingFailure', 1, {'EventType': event_type})
+        
+        set_security_logging_error_handler(my_error_handler)
+    """
+    global _error_handler
+    _error_handler = handler
+
+def fire_and_forget(log_future: Future[Dict[str, str]], event_type: Optional[str] = None) -> None:
+    """
+    Fire-and-forget wrapper for security logging functions.
+    Does NOT block your application - runs asynchronously with error handling.
+    
+    Args:
+        log_future: Future returned by ThreadPoolExecutor.submit() with a logging function
+        event_type: Optional event type for error reporting context
+    
+    Example:
+        # Instead of awaiting (which blocks):
+        # result = log_user_login(...)
+        
+        # Use fire-and-forget (non-blocking):
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(log_user_login, 
+                event_type=EventType.LOGIN_SUCCESS,
+                actor_identifier="user@company.com",
+                # ... other parameters
+            )
+            fire_and_forget(future, EventType.LOGIN_SUCCESS)
+        
+        # Application continues immediately - not blocked by SNS!
+    """
+    def handle_result(future: Future) -> None:
+        try:
+            result = future.result()
+            if result.get('status') == 'failure':
+                error_msg = f"Security logging failed: {result.get('message')}"
+                if _error_handler:
+                    _error_handler(error_msg, event_type)
+                else:
+                    print(error_msg, file=sys.stderr)
+        except Exception as error:
+            error_msg = f"Security logging error: {str(error)}"
+            if _error_handler:
+                _error_handler(error_msg, event_type)
+            else:
+                print(error_msg, file=sys.stderr)
+    
+    log_future.add_done_callback(handle_result)
 
 # ==================================
 # == Standardized Values Validation
