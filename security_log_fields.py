@@ -157,10 +157,16 @@ class Detail:
     VIEW_RECORD = "detail.action.view_record"
     EDIT_RECORD = "detail.action.edit_record"
     
-    # MFA Actions
+    # MFA Actions (for mfa_status_change events)
     MFA_DISABLED = "detail.action.mfa_disabled"
     MFA_ENABLED = "detail.action.mfa_enabled"
     NEW_MFA_DEVICE = "detail.action.new_mfa_device"
+    
+    # MFA Challenge failure reasons (for mfa_challenge events)
+    MFA_INVALID_CODE = "detail.mfa.invalid_code"
+    MFA_EXPIRED_CODE = "detail.mfa.expired_code"
+    MFA_DEVICE_NOT_ENROLLED = "detail.mfa.device_not_enrolled"
+    MFA_TOO_MANY_ATTEMPTS = "detail.mfa.too_many_attempts"
     
     # Password Actions
     PASSWORD_CHANGE = "detail.action.password_change"

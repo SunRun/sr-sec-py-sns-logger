@@ -188,8 +188,10 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             Detail.IMPERSONATION_START, Detail.IMPERSONATION_STOP,
             # Customer Data Actions
             Detail.VIEW_LIST, Detail.MODIFY_CUSTOMER_DATA, Detail.EXPORT_REPORT, Detail.VIEW_RECORD, Detail.EDIT_RECORD,
-            # MFA Actions
+            # MFA Actions (for mfa_status_change events)
             Detail.MFA_DISABLED, Detail.MFA_ENABLED, Detail.NEW_MFA_DEVICE,
+            # MFA Challenge failure reasons (for mfa_challenge events)
+            Detail.MFA_INVALID_CODE, Detail.MFA_EXPIRED_CODE, Detail.MFA_DEVICE_NOT_ENROLLED, Detail.MFA_TOO_MANY_ATTEMPTS,
             # Password Actions
             Detail.PASSWORD_CHANGE, Detail.PASSWORD_RESET,
             # Auth Mechanism Actions

@@ -715,6 +715,55 @@ with ThreadPoolExecutor() as executor:
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 ```
 
+#### MFA Challenge (Linked to Login via session_id)
+```python
+# Example: Complete MFA authentication flow
+# Step 1: User enters username/password successfully
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_user_login,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
+        actor_identifier="alice@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-mfa-flow-123",  # Same session_id for linked events
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        user_role=SecurityLogging.UserRole.ADMIN,
+        auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
+        status=SecurityLogging.Status.SUCCESS,  # Password verified
+        detail=SecurityLogging.Detail.USER_INITIATED
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
+
+# Step 2: User completes MFA challenge - FAILURE example
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_mfa_challenge,
+        event_type=SecurityLogging.EventType.MFA_CHALLENGE,
+        actor_identifier="alice@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-mfa-flow-123",  # SAME session_id = linked to login above
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        user_role=SecurityLogging.UserRole.ADMIN,
+        mfa_type=SecurityLogging.MfaType.TOTP,
+        status=SecurityLogging.Status.FAILURE,  # MFA failed
+        detail=SecurityLogging.Detail.MFA_INVALID_CODE  # Specific failure reason
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.MFA_CHALLENGE)
+
+# Query later: SELECT * FROM logs WHERE session_id = 'session-mfa-flow-123'
+# Returns: login_attempt (success) + mfa_challenge (failure) = complete auth flow
+```
+
 #### API Request
 ```python
 with ThreadPoolExecutor() as executor:
@@ -1175,7 +1224,7 @@ Additional required fields based on the specific event type. The `detail` field 
 | Event Type | Required Fields | Optional Fields | Detail Field Usage |
 |------------|----------------|-----------------|-------------------|
 | **User Login** (`login_attempt`) | `user_agent`, `user_role`, `auth_protocol`, `detail`, `status` | `device_id` | Success (`status.general.success`): "1st time login", "login with a successful MFA"<br>Failure (`status.general.failure`): `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
-| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
+| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type`, `status` | `device_id` | Success (`status.general.success`): `detail.trigger.user_initiated`<br>Failure (`status.general.failure`): `detail.mfa.invalid_code`, `detail.mfa.expired_code`, `detail.mfa.device_not_enrolled`, `detail.mfa.too_many_attempts` |
 | **User Logout** (`user_logout`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
 
 ##### Authorization & Access Events
