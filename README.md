@@ -202,13 +202,14 @@ def login():
                     cloud_env_name="production",
                     service_account_id="ecs-task-role",
                     
-                    event_type=EventType.LOGIN_FAILURE,              # ← Failed login
+                    event_type=EventType.LOGIN_ATTEMPT,              # ← Failed login attempt
                     status=Status.FAILURE,
                     user_agent=request.headers.get('User-Agent'),    # ← From Flask request
                     user_role=UserRole.UNKNOWN,                      # ← Unknown for failed login
+                    auth_protocol=AuthProtocol.FORM_BASED,           # ← Username/password form login
                     detail=Detail.INVALID_CREDENTIALS,
                 )
-                SecurityLogging.fire_and_forget(future, EventType.LOGIN_FAILURE)
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             return {'error': 'Invalid credentials'}, 401
         
@@ -224,14 +225,15 @@ def login():
                 cloud_env_name="production",
                 service_account_id="ecs-task-role",
                 
-                event_type=EventType.LOGIN_SUCCESS,
+                event_type=EventType.LOGIN_ATTEMPT,
                 status=Status.SUCCESS,
                 user_agent=request.headers.get('User-Agent'),
                 user_role=UserRole.ADMIN if user.role == 'admin'    # ← Map your role to constants
                           else UserRole.STANDARD_USER,
+                auth_protocol=AuthProtocol.FORM_BASED,              # ← Username/password form login
                 detail=Detail.USER_INITIATED,
             )
-            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
         
         return {'success': True, 'user': user.email}
         
@@ -247,7 +249,7 @@ Run your application in development mode (with `test_mode=True`) and trigger a l
 ```json
 {
   "timestamp": "2024-10-31T20:15:30.123456+00:00",
-  "event_type": "login_success",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
   "actor_identifier": "user@company.com",
@@ -426,7 +428,7 @@ SecurityLogging.init_security_logging(
 with ThreadPoolExecutor() as executor:
     future = executor.submit(
         SecurityLogging.log_user_login,
-        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
         actor_identifier="user@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-123",
@@ -437,10 +439,11 @@ with ThreadPoolExecutor() as executor:
         service_account_id="sa-logger@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0",
         user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants: https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py#L203
+        auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,  # Username/password, OAuth2, SAML, etc.
         status=SecurityLogging.Status.SUCCESS,
         detail="First time login from new device"
     )
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
 # Application continues immediately - not blocked by SNS!
 print("✅ Security logging initiated (non-blocking)")
@@ -515,7 +518,7 @@ def handle_user_login(user_email, session_id, user_agent):
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             SecurityLogging.log_user_login,
-            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
@@ -526,10 +529,11 @@ def handle_user_login(user_email, session_id, user_agent):
             service_account_id="lambda-execution-role",
             user_agent=user_agent,
             user_role=SecurityLogging.UserRole.ADMIN,
+            auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
             detail="Successful login"
         )
-        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
     # Return response immediately - user not blocked by SNS
     return {"status": "success", "message": "Login successful"}
@@ -692,7 +696,7 @@ def log_function_name(
 with ThreadPoolExecutor() as executor:
     future = executor.submit(
         SecurityLogging.log_user_login,
-        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
         actor_identifier="alice@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-xyz789",
@@ -703,11 +707,12 @@ with ThreadPoolExecutor() as executor:
         service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=SecurityLogging.UserRole.ADMIN,
+        auth_protocol=SecurityLogging.AuthProtocol.OAUTH2_JWT,
         status=SecurityLogging.Status.SUCCESS,
         source_ip_address="192.168.1.100",
         detail="First time login from new device"
     )
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 ```
 
 #### API Request
@@ -869,7 +874,7 @@ def handle_user_login(user_email, session_id):
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             SecurityLogging.log_user_login,
-            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
@@ -880,10 +885,11 @@ def handle_user_login(user_email, session_id):
             service_account_id="lambda-execution-role",
             user_agent="Mozilla/5.0...",
             user_role=SecurityLogging.UserRole.ADMIN,
+            auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
             detail="Successful login"
         )
-        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
     # User gets immediate response - no blocking
     return {"status": "success"}
@@ -1148,7 +1154,7 @@ This module implements a standardized flat JSON schema where all fields are at t
 | Field Name | Description | Example Value | Required |
 |------------|-------------|---------------|----------|
 | `timestamp` | Event timestamp in UTC | `"2025-09-08T20:25:51.000Z"` | ✅ (auto-generated if empty) |
-| `event_type` | Dot-notation event identifier | `"login_success"`, `"permission_change"` | ✅ |
+| `event_type` | Dot-notation event identifier | `"login_attempt"`, `"permission_change"` | ✅ |
 | `log_category` | High-level event category | `"authn_n_session"` | ✅ |
 | `status` | Event outcome | `"status.general.success"` | ✅ |
 | `actor_identifier` | Unique actor identifier | `"user@company.com"` | ✅ |
@@ -1168,7 +1174,7 @@ Additional required fields based on the specific event type. The `detail` field 
 ##### Authentication & Session Events
 | Event Type | Required Fields | Optional Fields | Detail Field Usage |
 |------------|----------------|-----------------|-------------------|
-| **User Login** (`login_success`, `login_failure`) | `user_agent`, `user_role`, `detail` | `device_id` | Success: "1st time login", "login with a successful MFA"<br>Failure: `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
+| **User Login** (`login_attempt`) | `user_agent`, `user_role`, `auth_protocol`, `detail`, `status` | `device_id` | Success (`status.general.success`): "1st time login", "login with a successful MFA"<br>Failure (`status.general.failure`): `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
 | **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
 | **User Logout** (`user_logout`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
 
@@ -1203,11 +1209,11 @@ Additional required fields based on the specific event type. The `detail` field 
 
 This section shows the exact JSON structure that gets sent to your SNS topic for key security event types. All examples use current standardized values and schema.
 
-#### User Login Success
+#### User Login Attempt (Success)
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691207+00:00",
-  "event_type": "login_success",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
   "actor_identifier": "alice@company.com",
@@ -1227,11 +1233,11 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 }
 ```
 
-#### User Login Failure
+#### User Login Attempt (Failure)
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691761+00:00",
-  "event_type": "login_failure",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.failure",
   "actor_identifier": "attacker@external.com",
@@ -1312,7 +1318,7 @@ All logging functions return a dictionary with the following structure:
 # ✅ Good - Check result and handle failures
 with ThreadPoolExecutor() as executor:
     future = executor.submit(SecurityLogging.log_user_login, ...)
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
 # ✅ Good - Use constants from security_log_fields
 result = SecurityLogging.log_user_login(

@@ -95,11 +95,12 @@ def fire_and_forget(log_future: Future[Dict[str, str]], event_type: Optional[str
         # Use fire-and-forget (non-blocking):
         with ThreadPoolExecutor() as executor:
             future = executor.submit(log_user_login, 
-                event_type=EventType.LOGIN_SUCCESS,
+                event_type=EventType.LOGIN_ATTEMPT,
+                status=Status.SUCCESS,
                 actor_identifier="user@company.com",
                 # ... other parameters
             )
-            fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            fire_and_forget(future, EventType.LOGIN_ATTEMPT)
         
         # Application continues immediately - not blocked by SNS!
     """
@@ -141,9 +142,11 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
         ],
         "cloud_env_type": [CloudEnvType.PROD, CloudEnvType.STAGE, CloudEnvType.TEST, CloudEnvType.DEV],
         "auth_protocol": [
-            AuthProtocol.API_KEY, AuthProtocol.OAUTH2_JWT, AuthProtocol.OAUTH2_CLIENT_CREDENTIALS,
+            AuthProtocol.BASIC_AUTH, AuthProtocol.FORM_BASED,
+            AuthProtocol.API_KEY, AuthProtocol.M2M_TOKEN, AuthProtocol.SESSION_COOKIE,
+            AuthProtocol.OAUTH2_JWT, AuthProtocol.OAUTH2_CLIENT_CREDENTIALS,
             AuthProtocol.OAUTH2_AUTHORIZATION_CODE, AuthProtocol.OAUTH2_IMPLICIT, AuthProtocol.OAUTH2_PASSWORD_GRANT,
-            AuthProtocol.SAML, AuthProtocol.OIDC, AuthProtocol.SESSION_COOKIE, AuthProtocol.M2M_TOKEN, AuthProtocol.NONE
+            AuthProtocol.SAML, AuthProtocol.OIDC, AuthProtocol.NONE
         ],
         "http_method": [
             HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.PATCH,
@@ -291,7 +294,7 @@ def _create_base_log_event(
 def log_user_login(
     # Base log fields (required but with defaults to avoid crashes)
     timestamp: str = "",
-    event_type: str = "",  # "login_success" or "login_failure"
+    event_type: str = "",  # Must be EventType.LOGIN_ATTEMPT
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
@@ -303,7 +306,8 @@ def log_user_login(
     # Event-specific required fields
     user_agent: str = "",
     user_role: str = "",
-    status: str = "",  # "status.general.success" or "status.general.failure"
+    status: str = "",  # Status.SUCCESS or Status.FAILURE
+    auth_protocol: str = "",  # AuthProtocol constant (e.g., AuthProtocol.OAUTH2_JWT)
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
@@ -311,13 +315,14 @@ def log_user_login(
     detail: str = ""  # Context like "1st time login", "invalid_credentials"
 ) -> Dict[str, str]:
     """
-    Logs User Login Success and Failure events.
+    Logs User Login attempts (both success and failure).
     
     Required fields:
-    - event_type: "login_success" or "login_failure"
-    - status: "status.general.success" or "status.general.failure"
+    - event_type: EventType.LOGIN_ATTEMPT
+    - status: Status.SUCCESS or Status.FAILURE
     - user_agent: Browser/device info
     - user_role: Role of the user at the time of login
+    - auth_protocol: Authentication protocol used (AuthProtocol.OAUTH2_JWT, AuthProtocol.SAML, etc.)
     
     Optional fields:
     - detail: Context for success/failure (e.g., "1st time login", "invalid_credentials")
@@ -330,6 +335,7 @@ def log_user_login(
             "status": status,
             "user_agent": user_agent,
             "user_role": user_role,
+            "auth_protocol": auth_protocol,
         }
         
         missing_fields = [field for field, value in required_fields.items() 
@@ -346,6 +352,7 @@ def log_user_login(
             _validate_standardized_field("event_type", event_type),
             _validate_standardized_field("status", status),
             _validate_standardized_field("user_role", user_role),
+            _validate_standardized_field("auth_protocol", auth_protocol),
         ]
         
         # Validate detail field only if provided
@@ -377,6 +384,7 @@ def log_user_login(
             # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
+            auth_protocol=auth_protocol,
             detail=detail,
             device_id=device_id,
         )
