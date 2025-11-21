@@ -19,21 +19,46 @@ _sns_publisher: Optional[SNSPublisher] = None
 # Global error handler for fire-and-forget logging
 _error_handler = None
 
-def init_security_logging(topic_arn: str = None, region_name: str = None, test_mode: bool = False):
+def init_security_logging(
+    topic_arn: str = None, 
+    region_name: str = None,
+    failover_topic_arn: str = None,
+    failover_region: str = None,
+    enable_failover: bool = True,
+    test_mode: bool = False
+):
     """
-    Initialize the security logging module.
+    Initialize the security logging module with optional multi-region failover.
     
     Args:
-        topic_arn: SNS Topic ARN. If None, uses default production ARN or reads from SECURITY_LOGS_TOPIC_ARN env var
-        region_name: AWS region. If None, uses default us-west-2 or reads from AWS_REGION env var
+        topic_arn: Primary SNS Topic ARN. If None, uses default or SECURITY_LOGS_TOPIC_ARN env var
+        region_name: Primary AWS region. If None, uses us-west-2
+        failover_topic_arn: Failover SNS Topic ARN (optional). If None, reads from SECURITY_LOGS_FAILOVER_TOPIC_ARN env var
+        failover_region: Failover AWS region. If None, uses us-east-2
+        enable_failover: Enable automatic failover (default: True). Set to False to disable failover
         test_mode: If True, logs are printed to console instead of sent to SNS
+    
+    Example:
+        # Basic initialization (no failover)
+        init_security_logging(
+            topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic"
+        )
+        
+        # With failover enabled
+        init_security_logging(
+            topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic",
+            failover_topic_arn="arn:aws:sns:us-east-2:123456789012:my-failover-topic",
+            enable_failover=True
+        )
     """
     global _sns_publisher
     
-    # Default production ARN and region
+    # Default production ARNs and regions
     DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
     DEFAULT_REGION = "us-west-2"
+    DEFAULT_FAILOVER_REGION = "us-east-2"
     
+    # Primary topic configuration
     if topic_arn is None:
         # First try environment variable, then use default
         topic_arn = os.environ.get("SECURITY_LOGS_TOPIC_ARN")
@@ -49,13 +74,53 @@ def init_security_logging(topic_arn: str = None, region_name: str = None, test_m
         if not region_name:
             region_name = DEFAULT_REGION
     
-    _sns_publisher = SNSPublisher(topic_arn=topic_arn, region_name=region_name, test_mode=test_mode)
+    # Failover topic configuration
+    if failover_topic_arn is None and enable_failover:
+        # Try environment variable for failover topic
+        failover_topic_arn = os.environ.get("SECURITY_LOGS_FAILOVER_TOPIC_ARN")
+    
+    if failover_region is None:
+        failover_region = os.environ.get("SECURITY_LOGS_FAILOVER_REGION", DEFAULT_FAILOVER_REGION)
+    
+    _sns_publisher = SNSPublisher(
+        topic_arn=topic_arn,
+        region_name=region_name,
+        failover_topic_arn=failover_topic_arn,
+        failover_region=failover_region,
+        enable_failover=enable_failover,
+        test_mode=test_mode
+    )
 
 def _get_publisher() -> SNSPublisher:
     """Get the global SNS publisher instance."""
     if _sns_publisher is None:
         raise RuntimeError("Security logging not initialized. Call init_security_logging() first.")
     return _sns_publisher
+
+def get_failover_metrics() -> Dict[str, int]:
+    """
+    Get current failover metrics for monitoring.
+    
+    Returns:
+        Dictionary with metrics:
+        - primary_success: Successful publishes to primary region
+        - primary_failure: Failed publishes to primary region
+        - failover_attempts: Number of times failover was attempted
+        - failover_success: Successful publishes to failover region
+        - failover_failure: Failed publishes to failover region
+        - total_failures: Total failures across both regions
+    
+    Example:
+        metrics = get_failover_metrics()
+        print(f"Failover used: {metrics['failover_success']} times")
+    """
+    publisher = _get_publisher()
+    return publisher.get_metrics()
+
+def reset_failover_metrics():
+    """Reset failover metrics counters. Useful for testing or periodic resets."""
+    publisher = _get_publisher()
+    publisher.reset_metrics()
 
 # ==================================
 # == Fire-and-Forget Functionality

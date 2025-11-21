@@ -126,6 +126,46 @@ print('✅ Security logging initialized.')
 SecurityLogging.init_security_logging()
 ```
 
+**Multi-Region Failover Configuration (Optional but Recommended):**
+
+For high availability, you can enable automatic failover to a secondary AWS region:
+
+```python
+# With failover enabled (automatically fails over to us-east-2)
+SecurityLogging.init_security_logging(
+    topic_arn="arn:aws:sns:us-west-2:123456789012:sr-sec-logging-log-topic-dev",
+    failover_topic_arn="arn:aws:sns:us-east-2:123456789012:sr-sec-logging-log-topic-failover-dev",
+    enable_failover=True  # Default: True
+)
+```
+
+**How Failover Works:**
+- Primary region (us-west-2) is tried first with fast timeout (2 seconds)
+- If primary fails with retriable error, automatically switches to failover region (us-east-2)
+- Circuit breaker prevents repeated attempts to failing regions
+- Automatic recovery when primary region becomes healthy
+- Zero code changes required - completely transparent to your application
+
+**Environment Variables (Alternative Configuration):**
+```bash
+export SECURITY_LOGS_TOPIC_ARN="arn:aws:sns:us-west-2:123456789012:my-topic"
+export SECURITY_LOGS_FAILOVER_TOPIC_ARN="arn:aws:sns:us-east-2:123456789012:my-failover-topic"
+export AWS_REGION="us-west-2"
+export SECURITY_LOGS_FAILOVER_REGION="us-east-2"
+```
+
+**Monitoring Failover:**
+```python
+# Get failover metrics
+metrics = SecurityLogging.get_failover_metrics()
+print(f"Primary success: {metrics['primary_success']}")
+print(f"Failover used: {metrics['failover_success']} times")
+print(f"Total failures: {metrics['total_failures']}")
+
+# Reset metrics (useful for periodic monitoring)
+SecurityLogging.reset_failover_metrics()
+```
+
 ---
 
 ## Step 3: Log Your First Event
