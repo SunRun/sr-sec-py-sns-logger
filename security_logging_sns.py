@@ -317,6 +317,9 @@ def _create_base_log_event(
     service_account_id: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = "",
     **kwargs  # Additional event-specific fields
 ) -> Dict[str, Any]:
     """
@@ -349,6 +352,14 @@ def _create_base_log_event(
         "cloud_service_api_type": cloud_service_api_type,
     }
     
+    # Add trace context fields (W3C Trace Context support)
+    if trace_id:
+        event["trace_id"] = trace_id
+    if span_id:
+        event["span_id"] = span_id
+    if parent_span_id:
+        event["parent_span_id"] = parent_span_id
+    
     # Add all additional fields from kwargs
     event.update(kwargs)
     
@@ -379,7 +390,11 @@ def log_user_login(
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = ""  # Context like "1st time login", "invalid_credentials"
+    detail: str = "",  # Context like "1st time login", "invalid_credentials",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs User Login attempts (both success and failure).
@@ -448,6 +463,9 @@ def log_user_login(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
@@ -481,7 +499,11 @@ def log_mfa_challenge(
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = ""  # Context for success/failure
+    detail: str = "",  # Context for success/failure,
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs MFA Challenge events.
@@ -550,6 +572,9 @@ def log_mfa_challenge(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
@@ -582,7 +607,11 @@ def log_user_logout(
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = ""  # e.g., "timeout", "user_initiated", "concurrent_session", "admin_initiated"
+    detail: str = "",  # e.g., "timeout", "user_initiated", "concurrent_session", "admin_initiated",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs User Logout events.
@@ -648,6 +677,9 @@ def log_user_logout(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
@@ -683,7 +715,11 @@ def log_permission_role_change(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    detail: str = ""
+    detail: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Permission/Role/Group Membership Change events.
@@ -745,6 +781,9 @@ def log_permission_role_change(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
             object_changed=object_changed,
@@ -774,7 +813,11 @@ def log_user_status_change(
     detail: str = "",  # e.g., "detail.action.user_disabled", "detail.action.user_deleted"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs User Status Events (Disabled/Blocked, Enabled/Unblocked, Deleted).
@@ -827,6 +870,9 @@ def log_user_status_change(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
             detail=detail,
@@ -853,7 +899,11 @@ def log_impersonation_event(
     detail: str = "",  # "detail.action.impersonation_start" or "detail.action.impersonation_stop"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Impersonation Events (Start/Stop).
@@ -913,6 +963,9 @@ def log_impersonation_event(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_user_identifier=target_user_identifier,
             detail=detail,
@@ -941,7 +994,11 @@ def log_user_invite_event(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    detail: str = ""
+    detail: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs User Invite events (Sent/Accepted/Revoked/Expired).
@@ -1003,6 +1060,9 @@ def log_user_invite_event(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_user_email=target_user_email,
             assigned_role=assigned_role,
@@ -1039,7 +1099,11 @@ def log_api_request(
     # Optional fields
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    detail: str = ""  # e.g., "invalid_token", "expired_token", "ip_not_on_allowlist"
+    detail: str = "",  # e.g., "invalid_token", "expired_token", "ip_not_on_allowlist",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs API Request Processed events.
@@ -1109,6 +1173,9 @@ def log_api_request(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             auth_protocol=auth_protocol,
             endpoint_path=endpoint_path,
@@ -1146,7 +1213,11 @@ def log_multi_record_access(
     detail: str = "",  # e.g., "detail.action.view_list", "detail.action.export_report"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Multi-Record Customer Data Actions (View/Modify List, Export/Download Report).
@@ -1214,6 +1285,9 @@ def log_multi_record_access(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             endpoint_path=endpoint_path,
             data_sensitivity_level=data_sensitivity_level,
@@ -1244,7 +1318,11 @@ def log_single_record_access(
     detail: str = "",  # e.g., "detail.action.view_record", "detail.action.edit_record"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Single Record Customer Data Actions (View/Modify Personal Data).
@@ -1310,6 +1388,9 @@ def log_single_record_access(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             customer_id=customer_id,
             fields_accessed=fields_accessed,
@@ -1343,7 +1424,11 @@ def log_mfa_status_change(
     detail: str = "",  # e.g., "detail.action.mfa_disabled", "detail.action.mfa_enabled", "detail.action.new_mfa_device"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs MFA Status Change events.
@@ -1406,6 +1491,9 @@ def log_mfa_status_change(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_object=target_object,
             mfa_id=mfa_id,
@@ -1434,7 +1522,11 @@ def log_password_change_reset(
     detail: str = "",  # e.g., "detail.action.password_change", "detail.action.password_reset"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Password Change/Reset events.
@@ -1495,6 +1587,9 @@ def log_password_change_reset(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_object=target_object,
             detail=detail,
@@ -1522,7 +1617,11 @@ def log_api_key_lifecycle(
     detail: str = "",  # e.g., "detail.action.api_key_created", "detail.action.api_key_revoked", "detail.action.api_key_permissions_modified"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs API Key Lifecycle events (Created, Revoked, Permissions Modified).
@@ -1582,6 +1681,9 @@ def log_api_key_lifecycle(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_object=target_object,
             detail=detail,
@@ -1609,7 +1711,11 @@ def log_auth_mechanism_modification(
     detail: str = "",  # e.g., "detail.action.new_sso_provider", "detail.action.enable_local_authn", "detail.action.disable_sso"
     # Optional fields
     source_ip_address: str = "",
-    cloud_service_api_type: str = ""
+    cloud_service_api_type: str = "",
+    # W3C Trace Context fields (optional)
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
     Logs Authentication Mechanism Modification events (disable SSO, allow 2nd authN in parallel).
@@ -1669,6 +1775,9 @@ def log_auth_mechanism_modification(
             service_account_id=service_account_id,
             source_ip_address=source_ip_address,
             cloud_service_api_type=cloud_service_api_type,
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
             # Event-specific fields
             target_object=target_object,
             detail=detail,

@@ -1373,7 +1373,124 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 
 > **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`example_publish.py`](example_publish.py).
 
-### Appendix C: Troubleshooting
+### Appendix C: W3C Trace Context Support
+
+This library supports [W3C Trace Context](https://www.w3.org/TR/trace-context/) for distributed tracing across your microservices. This allows you to link security events across multiple services to understand complete request flows.
+
+#### What is Trace Context?
+
+Trace context provides a standardized way to track a single request as it flows through multiple services:
+
+- **`trace_id`** (32 hex chars): Unique ID for the entire transaction across all services
+- **`span_id`** (16 hex chars): Unique ID for this specific service's operation  
+- **`parent_span_id`** (16 hex chars): The span_id of the calling service (optional)
+
+#### How It Works
+
+```
+Browser → Gateway → Auth Service → MFA Service
+          |         |              |
+          v         v              v
+   trace_id: 4bf92f3577b34da6a3ce929d0e0e4736 (SAME everywhere)
+   span_id:  00f067aa  b7ad6b71   c8be8c9a (DIFFERENT for each)
+```
+
+When you query your logs by `trace_id`, you get ALL events from that user's complete journey.
+
+#### Usage Example
+
+```python
+from security_logging_sns import SecurityLogging, EventType, Status, AuthProtocol
+
+# 1. Extract from incoming HTTP request
+incoming_traceparent = request.headers.get('traceparent')
+
+if incoming_traceparent:
+    # Parse: "00-{trace_id}-{parent_span_id}-{flags}"
+    parts = incoming_traceparent.split('-')
+    trace_id = parts[1]
+    parent_span_id = parts[2]
+else:
+    # Start new trace
+    import secrets
+    trace_id = secrets.token_hex(16)  # 32 hex chars
+    parent_span_id = None
+
+# 2. Generate THIS service's span_id
+import secrets
+span_id = secrets.token_hex(8)  # 16 hex chars
+
+# 3. Log with trace context
+SecurityLogging.log_user_login(
+    event_type=EventType.LOGIN_ATTEMPT,
+    status=Status.SUCCESS,
+    actor_identifier="user@example.com",
+    auth_protocol=AuthProtocol.OAUTH2_JWT,
+    user_agent="Mozilla/5.0",
+    user_role="role.classification.admin",
+    # Trace context fields (optional)
+    trace_id=trace_id,
+    span_id=span_id,
+    parent_span_id=parent_span_id
+)
+
+# 4. Forward to next service
+next_headers = {
+    'traceparent': f'00-{trace_id}-{span_id}-01'
+}
+requests.post('https://next-service/api', headers=next_headers)
+```
+
+#### Querying Traces in Athena
+
+Once events are in S3, you can reconstruct the entire request flow:
+
+```sql
+-- Get all events for a specific trace
+SELECT 
+    timestamp,
+    event_type,
+    service_name,
+    span_id,
+    parent_span_id,
+    status
+FROM security_logs
+WHERE trace_id = '4bf92f3577b34da6a3ce929d0e0e4736'
+ORDER BY timestamp
+```
+
+#### Sample Log Output with Trace Context
+
+```json
+{
+  "timestamp": "2025-11-24T10:30:00Z",
+  "event_type": "login_attempt",
+  "status": "status.general.success",
+  "actor_identifier": "user@example.com",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "parent_span_id": "b7ad6b7169203331",
+  "service_name": "auth-service",
+  ...
+}
+```
+
+#### Benefits
+
+✅ **Link Events Across Services**: See the complete user journey  
+✅ **Debugging**: Trace failures back to their source  
+✅ **Compliance**: "Show me every service that touched this user's data"  
+✅ **Performance Analysis**: Identify slow services in the chain  
+✅ **Security Forensics**: Reconstruct attack sequences
+
+#### Important Notes
+
+- All trace context fields are **optional** - existing code continues to work  
+- Services that don't use trace context just leave these fields empty
+- Trace IDs should be cryptographically random (use `secrets.token_hex()`)
+- The W3C spec uses lowercase hex only (a-f, not A-F)
+
+### Appendix D: Troubleshooting
 
 #### Common Issues
 1. **Import Errors**: Ensure all files are in the same directory or Python path
@@ -1436,7 +1553,7 @@ result = SecurityLogging.log_user_login(
 # Returns: {"status": "failure", "message": "Required fields missing: actor_type, session_id, cloud_env_type, service_name, cloud_env_unique_id, cloud_env_name, service_account_id"}
 ```
 
-### Appendix D: Module Structure
+### Appendix E: Module Structure
 
 ```
 sr-sec-py-sns-logger/
@@ -1452,7 +1569,7 @@ sr-sec-py-sns-logger/
 └── README.md                     # This documentation
 ```
 
-### Appendix E: Testing & Development
+### Appendix F: Testing & Development
 
 #### Running Tests
 ```bash
@@ -1472,7 +1589,7 @@ The unit tests cover:
 - ✅ **Validation**: Standardized field validation
 - ✅ **Fire-and-Forget**: Non-blocking behavior, error handling, concurrent usage
 
-### Appendix F: Configuration Options
+### Appendix G: Configuration Options
 
 #### Initialization Parameters
 
