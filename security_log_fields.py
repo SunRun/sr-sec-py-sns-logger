@@ -48,8 +48,7 @@ class LogCategory:
 # Event types - simplified based on specification
 class EventType:
     # Authentication & Session
-    LOGIN_SUCCESS = "login_success"
-    LOGIN_FAILURE = "login_failure" 
+    LOGIN_ATTEMPT = "login_attempt"  # Use with Status.SUCCESS or Status.FAILURE
     USER_LOGOUT = "user_logout"
     MFA_CHALLENGE = "mfa_challenge"
     
@@ -75,16 +74,27 @@ class EventType:
 
 # Authentication protocols using standardized format
 class AuthProtocol:
+    # Basic username/password authentication
+    BASIC_AUTH = "auth.protocol.basic_auth"           # HTTP Basic Authentication
+    FORM_BASED = "auth.protocol.form_based"           # Form-based username/password login
+    
+    # Token-based authentication
     API_KEY = "auth.protocol.api_key"
+    M2M_TOKEN = "auth.protocol.m2m_token"
+    SESSION_COOKIE = "auth.protocol.session_cookie"
+    
+    # OAuth2 variants
     OAUTH2_JWT = "auth.protocol.oauth2.jwt"
     OAUTH2_CLIENT_CREDENTIALS = "auth.protocol.oauth2.client_credentials"
     OAUTH2_AUTHORIZATION_CODE = "auth.protocol.oauth2.authorization_code"
     OAUTH2_IMPLICIT = "auth.protocol.oauth2.implicit"
     OAUTH2_PASSWORD_GRANT = "auth.protocol.oauth2.password_grant"
+    
+    # SSO protocols
     SAML = "auth.protocol.saml"
     OIDC = "auth.protocol.oidc"
-    SESSION_COOKIE = "auth.protocol.session_cookie"
-    M2M_TOKEN = "auth.protocol.m2m_token"
+    
+    # Special cases
     NONE = "auth.protocol.none"
 
 # Detail values for various contexts
@@ -147,10 +157,16 @@ class Detail:
     VIEW_RECORD = "detail.action.view_record"
     EDIT_RECORD = "detail.action.edit_record"
     
-    # MFA Actions
+    # MFA Actions (for mfa_status_change events)
     MFA_DISABLED = "detail.action.mfa_disabled"
     MFA_ENABLED = "detail.action.mfa_enabled"
     NEW_MFA_DEVICE = "detail.action.new_mfa_device"
+    
+    # MFA Challenge failure reasons (for mfa_challenge events)
+    MFA_INVALID_CODE = "detail.mfa.invalid_code"
+    MFA_EXPIRED_CODE = "detail.mfa.expired_code"
+    MFA_DEVICE_NOT_ENROLLED = "detail.mfa.device_not_enrolled"
+    MFA_TOO_MANY_ATTEMPTS = "detail.mfa.too_many_attempts"
     
     # Password Actions
     PASSWORD_CHANGE = "detail.action.password_change"
@@ -238,8 +254,7 @@ class InviteStatus:
 
 # Validation lists for standardized values
 VALID_EVENT_TYPES = [
-    EventType.LOGIN_SUCCESS,
-    EventType.LOGIN_FAILURE,
+    EventType.LOGIN_ATTEMPT,       # Consolidated login event (use with status field)
     EventType.USER_LOGOUT,
     EventType.MFA_CHALLENGE,
     EventType.PERMISSION_CHANGE,

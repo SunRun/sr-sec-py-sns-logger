@@ -126,6 +126,46 @@ print('✅ Security logging initialized.')
 SecurityLogging.init_security_logging()
 ```
 
+**Multi-Region Failover Configuration (Optional but Recommended):**
+
+For high availability, you can enable automatic failover to a secondary AWS region:
+
+```python
+# With failover enabled (automatically fails over to us-east-2)
+SecurityLogging.init_security_logging(
+    topic_arn="arn:aws:sns:us-west-2:123456789012:sr-sec-logging-log-topic-dev",
+    failover_topic_arn="arn:aws:sns:us-east-2:123456789012:sr-sec-logging-log-topic-failover-dev",
+    enable_failover=True  # Default: True
+)
+```
+
+**How Failover Works:**
+- Primary region (us-west-2) is tried first with fast timeout (2 seconds)
+- If primary fails with retriable error, automatically switches to failover region (us-east-2)
+- Circuit breaker prevents repeated attempts to failing regions
+- Automatic recovery when primary region becomes healthy
+- Zero code changes required - completely transparent to your application
+
+**Environment Variables (Alternative Configuration):**
+```bash
+export SECURITY_LOGS_TOPIC_ARN="arn:aws:sns:us-west-2:123456789012:my-topic"
+export SECURITY_LOGS_FAILOVER_TOPIC_ARN="arn:aws:sns:us-east-2:123456789012:my-failover-topic"
+export AWS_REGION="us-west-2"
+export SECURITY_LOGS_FAILOVER_REGION="us-east-2"
+```
+
+**Monitoring Failover:**
+```python
+# Get failover metrics
+metrics = SecurityLogging.get_failover_metrics()
+print(f"Primary success: {metrics['primary_success']}")
+print(f"Failover used: {metrics['failover_success']} times")
+print(f"Total failures: {metrics['total_failures']}")
+
+# Reset metrics (useful for periodic monitoring)
+SecurityLogging.reset_failover_metrics()
+```
+
 ---
 
 ## Step 3: Log Your First Event
@@ -202,13 +242,14 @@ def login():
                     cloud_env_name="production",
                     service_account_id="ecs-task-role",
                     
-                    event_type=EventType.LOGIN_FAILURE,              # ← Failed login
+                    event_type=EventType.LOGIN_ATTEMPT,              # ← Failed login attempt
                     status=Status.FAILURE,
                     user_agent=request.headers.get('User-Agent'),    # ← From Flask request
                     user_role=UserRole.UNKNOWN,                      # ← Unknown for failed login
+                    auth_protocol=AuthProtocol.FORM_BASED,           # ← Username/password form login
                     detail=Detail.INVALID_CREDENTIALS,
                 )
-                SecurityLogging.fire_and_forget(future, EventType.LOGIN_FAILURE)
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             return {'error': 'Invalid credentials'}, 401
         
@@ -224,14 +265,15 @@ def login():
                 cloud_env_name="production",
                 service_account_id="ecs-task-role",
                 
-                event_type=EventType.LOGIN_SUCCESS,
+                event_type=EventType.LOGIN_ATTEMPT,
                 status=Status.SUCCESS,
                 user_agent=request.headers.get('User-Agent'),
                 user_role=UserRole.ADMIN if user.role == 'admin'    # ← Map your role to constants
                           else UserRole.STANDARD_USER,
+                auth_protocol=AuthProtocol.FORM_BASED,              # ← Username/password form login
                 detail=Detail.USER_INITIATED,
             )
-            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
         
         return {'success': True, 'user': user.email}
         
@@ -247,7 +289,7 @@ Run your application in development mode (with `test_mode=True`) and trigger a l
 ```json
 {
   "timestamp": "2024-10-31T20:15:30.123456+00:00",
-  "event_type": "login_success",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
   "actor_identifier": "user@company.com",
@@ -426,7 +468,7 @@ SecurityLogging.init_security_logging(
 with ThreadPoolExecutor() as executor:
     future = executor.submit(
         SecurityLogging.log_user_login,
-        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
         actor_identifier="user@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-123",
@@ -437,10 +479,11 @@ with ThreadPoolExecutor() as executor:
         service_account_id="sa-logger@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0",
         user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants: https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py#L203
+        auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,  # Username/password, OAuth2, SAML, etc.
         status=SecurityLogging.Status.SUCCESS,
         detail="First time login from new device"
     )
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
 # Application continues immediately - not blocked by SNS!
 print("✅ Security logging initiated (non-blocking)")
@@ -515,7 +558,7 @@ def handle_user_login(user_email, session_id, user_agent):
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             SecurityLogging.log_user_login,
-            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
@@ -526,10 +569,11 @@ def handle_user_login(user_email, session_id, user_agent):
             service_account_id="lambda-execution-role",
             user_agent=user_agent,
             user_role=SecurityLogging.UserRole.ADMIN,
+            auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
             detail="Successful login"
         )
-        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
     # Return response immediately - user not blocked by SNS
     return {"status": "success", "message": "Login successful"}
@@ -692,7 +736,7 @@ def log_function_name(
 with ThreadPoolExecutor() as executor:
     future = executor.submit(
         SecurityLogging.log_user_login,
-        event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
         actor_identifier="alice@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-xyz789",
@@ -703,11 +747,61 @@ with ThreadPoolExecutor() as executor:
         service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=SecurityLogging.UserRole.ADMIN,
+        auth_protocol=SecurityLogging.AuthProtocol.OAUTH2_JWT,
         status=SecurityLogging.Status.SUCCESS,
         source_ip_address="192.168.1.100",
         detail="First time login from new device"
     )
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
+```
+
+#### MFA Challenge (Linked to Login via session_id)
+```python
+# Example: Complete MFA authentication flow
+# Step 1: User enters username/password successfully
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_user_login,
+        event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
+        actor_identifier="alice@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-mfa-flow-123",  # Same session_id for linked events
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        user_role=SecurityLogging.UserRole.ADMIN,
+        auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
+        status=SecurityLogging.Status.SUCCESS,  # Password verified
+        detail=SecurityLogging.Detail.USER_INITIATED
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
+
+# Step 2: User completes MFA challenge - FAILURE example
+with ThreadPoolExecutor() as executor:
+    future = executor.submit(
+        SecurityLogging.log_mfa_challenge,
+        event_type=SecurityLogging.EventType.MFA_CHALLENGE,
+        actor_identifier="alice@company.com",
+        actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
+        session_id="session-mfa-flow-123",  # SAME session_id = linked to login above
+        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+        service_name="user-management-api",
+        cloud_env_unique_id="123456789012",
+        cloud_env_name="prod-us-east-1",
+        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        user_role=SecurityLogging.UserRole.ADMIN,
+        mfa_type=SecurityLogging.MfaType.TOTP,
+        status=SecurityLogging.Status.FAILURE,  # MFA failed
+        detail=SecurityLogging.Detail.MFA_INVALID_CODE  # Specific failure reason
+    )
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.MFA_CHALLENGE)
+
+# Query later: SELECT * FROM logs WHERE session_id = 'session-mfa-flow-123'
+# Returns: login_attempt (success) + mfa_challenge (failure) = complete auth flow
 ```
 
 #### API Request
@@ -869,7 +963,7 @@ def handle_user_login(user_email, session_id):
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             SecurityLogging.log_user_login,
-            event_type=SecurityLogging.EventType.LOGIN_SUCCESS,
+            event_type=SecurityLogging.EventType.LOGIN_ATTEMPT,
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
@@ -880,10 +974,11 @@ def handle_user_login(user_email, session_id):
             service_account_id="lambda-execution-role",
             user_agent="Mozilla/5.0...",
             user_role=SecurityLogging.UserRole.ADMIN,
+            auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
             detail="Successful login"
         )
-        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+        SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
     # User gets immediate response - no blocking
     return {"status": "success"}
@@ -1148,7 +1243,7 @@ This module implements a standardized flat JSON schema where all fields are at t
 | Field Name | Description | Example Value | Required |
 |------------|-------------|---------------|----------|
 | `timestamp` | Event timestamp in UTC | `"2025-09-08T20:25:51.000Z"` | ✅ (auto-generated if empty) |
-| `event_type` | Dot-notation event identifier | `"login_success"`, `"permission_change"` | ✅ |
+| `event_type` | Dot-notation event identifier | `"login_attempt"`, `"permission_change"` | ✅ |
 | `log_category` | High-level event category | `"authn_n_session"` | ✅ |
 | `status` | Event outcome | `"status.general.success"` | ✅ |
 | `actor_identifier` | Unique actor identifier | `"user@company.com"` | ✅ |
@@ -1156,6 +1251,7 @@ This module implements a standardized flat JSON schema where all fields are at t
 | `session_id` | Session identifier | `"session-abc-123"` | ✅ |
 | `cloud_env_type` | Environment type | `"prod"`, `"stage"`, `"dev"` | ✅ |
 | `service_name` | Application/service name | `"elephant_mfe"` | ✅ |
+| `service_component_name` | Specific component within a service | `"auth-handler"`, `"payment-processor"` | ❌ Optional |
 | `cloud_env_unique_id` | Cloud environment ID | `"aws_account_id"` | ✅ |
 | `cloud_env_name` | Environment name | `"ai_team"` | ✅ |
 | `service_account_id` | Service account ID | `"sa-log-writer@project.iam"` | ✅ |
@@ -1168,8 +1264,8 @@ Additional required fields based on the specific event type. The `detail` field 
 ##### Authentication & Session Events
 | Event Type | Required Fields | Optional Fields | Detail Field Usage |
 |------------|----------------|-----------------|-------------------|
-| **User Login** (`login_success`, `login_failure`) | `user_agent`, `user_role`, `detail` | `device_id` | Success: "1st time login", "login with a successful MFA"<br>Failure: `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
-| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type` | `device_id` | Success: "login with a successful MFA"<br>Failure: `detail.auth.invalid_mfa_code` |
+| **User Login** (`login_attempt`) | `user_agent`, `user_role`, `auth_protocol`, `detail`, `status` | `device_id` | Success (`status.general.success`): "1st time login", "login with a successful MFA"<br>Failure (`status.general.failure`): `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
+| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type`, `status` | `device_id` | Success (`status.general.success`): `detail.trigger.user_initiated`<br>Failure (`status.general.failure`): `detail.mfa.invalid_code`, `detail.mfa.expired_code`, `detail.mfa.device_not_enrolled`, `detail.mfa.too_many_attempts` |
 | **User Logout** (`user_logout`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
 
 ##### Authorization & Access Events
@@ -1203,11 +1299,11 @@ Additional required fields based on the specific event type. The `detail` field 
 
 This section shows the exact JSON structure that gets sent to your SNS topic for key security event types. All examples use current standardized values and schema.
 
-#### User Login Success
+#### User Login Attempt (Success)
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691207+00:00",
-  "event_type": "login_success",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
   "actor_identifier": "alice@company.com",
@@ -1227,11 +1323,11 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 }
 ```
 
-#### User Login Failure
+#### User Login Attempt (Failure)
 ```json
 {
   "timestamp": "2025-09-09T23:13:16.691761+00:00",
-  "event_type": "login_failure",
+  "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.failure",
   "actor_identifier": "attacker@external.com",
@@ -1278,7 +1374,124 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 
 > **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`example_publish.py`](example_publish.py).
 
-### Appendix C: Troubleshooting
+### Appendix C: W3C Trace Context Support
+
+This library supports [W3C Trace Context](https://www.w3.org/TR/trace-context/) for distributed tracing across your microservices. This allows you to link security events across multiple services to understand complete request flows.
+
+#### What is Trace Context?
+
+Trace context provides a standardized way to track a single request as it flows through multiple services:
+
+- **`trace_id`** (32 hex chars): Unique ID for the entire transaction across all services
+- **`span_id`** (16 hex chars): Unique ID for this specific service's operation  
+- **`parent_span_id`** (16 hex chars): The span_id of the calling service (optional)
+
+#### How It Works
+
+```
+Browser → Gateway → Auth Service → MFA Service
+          |         |              |
+          v         v              v
+   trace_id: 4bf92f3577b34da6a3ce929d0e0e4736 (SAME everywhere)
+   span_id:  00f067aa  b7ad6b71   c8be8c9a (DIFFERENT for each)
+```
+
+When you query your logs by `trace_id`, you get ALL events from that user's complete journey.
+
+#### Usage Example
+
+```python
+from security_logging_sns import SecurityLogging, EventType, Status, AuthProtocol
+
+# 1. Extract from incoming HTTP request
+incoming_traceparent = request.headers.get('traceparent')
+
+if incoming_traceparent:
+    # Parse: "00-{trace_id}-{parent_span_id}-{flags}"
+    parts = incoming_traceparent.split('-')
+    trace_id = parts[1]
+    parent_span_id = parts[2]
+else:
+    # Start new trace
+    import secrets
+    trace_id = secrets.token_hex(16)  # 32 hex chars
+    parent_span_id = None
+
+# 2. Generate THIS service's span_id
+import secrets
+span_id = secrets.token_hex(8)  # 16 hex chars
+
+# 3. Log with trace context
+SecurityLogging.log_user_login(
+    event_type=EventType.LOGIN_ATTEMPT,
+    status=Status.SUCCESS,
+    actor_identifier="user@example.com",
+    auth_protocol=AuthProtocol.OAUTH2_JWT,
+    user_agent="Mozilla/5.0",
+    user_role="role.classification.admin",
+    # Trace context fields (optional)
+    trace_id=trace_id,
+    span_id=span_id,
+    parent_span_id=parent_span_id
+)
+
+# 4. Forward to next service
+next_headers = {
+    'traceparent': f'00-{trace_id}-{span_id}-01'
+}
+requests.post('https://next-service/api', headers=next_headers)
+```
+
+#### Querying Traces in Athena
+
+Once events are in S3, you can reconstruct the entire request flow:
+
+```sql
+-- Get all events for a specific trace
+SELECT 
+    timestamp,
+    event_type,
+    service_name,
+    span_id,
+    parent_span_id,
+    status
+FROM security_logs
+WHERE trace_id = '4bf92f3577b34da6a3ce929d0e0e4736'
+ORDER BY timestamp
+```
+
+#### Sample Log Output with Trace Context
+
+```json
+{
+  "timestamp": "2025-11-24T10:30:00Z",
+  "event_type": "login_attempt",
+  "status": "status.general.success",
+  "actor_identifier": "user@example.com",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "parent_span_id": "b7ad6b7169203331",
+  "service_name": "auth-service",
+  ...
+}
+```
+
+#### Benefits
+
+✅ **Link Events Across Services**: See the complete user journey  
+✅ **Debugging**: Trace failures back to their source  
+✅ **Compliance**: "Show me every service that touched this user's data"  
+✅ **Performance Analysis**: Identify slow services in the chain  
+✅ **Security Forensics**: Reconstruct attack sequences
+
+#### Important Notes
+
+- All trace context fields are **optional** - existing code continues to work  
+- Services that don't use trace context just leave these fields empty
+- Trace IDs should be cryptographically random (use `secrets.token_hex()`)
+- The W3C spec uses lowercase hex only (a-f, not A-F)
+
+### Appendix D: Troubleshooting
 
 #### Common Issues
 1. **Import Errors**: Ensure all files are in the same directory or Python path
@@ -1312,7 +1525,7 @@ All logging functions return a dictionary with the following structure:
 # ✅ Good - Check result and handle failures
 with ThreadPoolExecutor() as executor:
     future = executor.submit(SecurityLogging.log_user_login, ...)
-    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_SUCCESS)
+    SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
 # ✅ Good - Use constants from security_log_fields
 result = SecurityLogging.log_user_login(
@@ -1341,7 +1554,7 @@ result = SecurityLogging.log_user_login(
 # Returns: {"status": "failure", "message": "Required fields missing: actor_type, session_id, cloud_env_type, service_name, cloud_env_unique_id, cloud_env_name, service_account_id"}
 ```
 
-### Appendix D: Module Structure
+### Appendix E: Module Structure
 
 ```
 sr-sec-py-sns-logger/
@@ -1357,7 +1570,7 @@ sr-sec-py-sns-logger/
 └── README.md                     # This documentation
 ```
 
-### Appendix E: Testing & Development
+### Appendix F: Testing & Development
 
 #### Running Tests
 ```bash
@@ -1377,7 +1590,7 @@ The unit tests cover:
 - ✅ **Validation**: Standardized field validation
 - ✅ **Fire-and-Forget**: Non-blocking behavior, error handling, concurrent usage
 
-### Appendix F: Configuration Options
+### Appendix G: Configuration Options
 
 #### Initialization Parameters
 
