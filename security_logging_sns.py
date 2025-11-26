@@ -315,6 +315,7 @@ def _create_base_log_event(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -355,6 +356,10 @@ def _create_base_log_event(
         "cloud_service_api_type": cloud_service_api_type,
     }
     
+    # Add optional service_component_name if provided
+    if service_component_name:
+        event["service_component_name"] = service_component_name
+    
     # Add trace context fields (W3C Trace Context support)
     if trace_id:
         event["trace_id"] = trace_id
@@ -381,6 +386,7 @@ def log_user_login(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -461,6 +467,7 @@ def log_user_login(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -490,6 +497,7 @@ def log_mfa_challenge(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -570,6 +578,7 @@ def log_mfa_challenge(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -599,6 +608,7 @@ def log_user_logout(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -675,6 +685,7 @@ def log_user_logout(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -707,6 +718,7 @@ def log_permission_role_change(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -779,6 +791,7 @@ def log_permission_role_change(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -808,6 +821,7 @@ def log_user_status_change(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -868,6 +882,7 @@ def log_user_status_change(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -894,6 +909,7 @@ def log_impersonation_event(
     session_id: str = "",  # The admin's session
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -961,6 +977,7 @@ def log_impersonation_event(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -987,6 +1004,7 @@ def log_user_invite_event(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1058,6 +1076,7 @@ def log_user_invite_event(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1090,6 +1109,7 @@ def log_api_request(
     session_id: str = "",  # Important to correlate user session if using user flow
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1171,6 +1191,7 @@ def log_api_request(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1205,6 +1226,7 @@ def log_multi_record_access(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1283,6 +1305,7 @@ def log_multi_record_access(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1312,6 +1335,7 @@ def log_single_record_access(
     session_id: str = "",
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1386,6 +1410,7 @@ def log_single_record_access(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1417,6 +1442,7 @@ def log_mfa_status_change(
     session_id: str = "",  # The admin's session
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1489,6 +1515,7 @@ def log_mfa_status_change(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1516,6 +1543,7 @@ def log_password_change_reset(
     session_id: str = "",  # The admin's session
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1585,6 +1613,7 @@ def log_password_change_reset(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1611,6 +1640,7 @@ def log_api_key_lifecycle(
     session_id: str = "",  # The admin's session
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1679,6 +1709,7 @@ def log_api_key_lifecycle(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,
@@ -1705,6 +1736,7 @@ def log_auth_mechanism_modification(
     session_id: str = "",  # The admin's session
     cloud_env_type: str = "",
     service_name: str = "",
+    service_component_name: str = "",  # Optional: specific component within a service
     cloud_env_unique_id: str = "",
     cloud_env_name: str = "",
     service_account_id: str = "",
@@ -1773,6 +1805,7 @@ def log_auth_mechanism_modification(
             session_id=session_id,
             cloud_env_type=cloud_env_type,
             service_name=service_name,
+            service_component_name=service_component_name,
             cloud_env_unique_id=cloud_env_unique_id,
             cloud_env_name=cloud_env_name,
             service_account_id=service_account_id,

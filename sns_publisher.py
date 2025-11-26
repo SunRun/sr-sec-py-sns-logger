@@ -139,7 +139,7 @@ class SNSPublisher:
             # Primary region client
             if region_name is None:
                 region_name = "us-west-2"  # Default region
-            
+                
             self.region_name = region_name
             
             # Create primary client with fast-fail config
@@ -230,10 +230,10 @@ class SNSPublisher:
         1. Try primary region (fast-fail)
         2. If primary fails with retriable error, try failover region
         3. Circuit breaker prevents repeated attempts to failing regions
-        
+
         Args:
             log_details: Dictionary containing the log data to publish
-        
+
         Returns:
             Dict with "status" key ("success" or "failure") and optional metadata.
         """

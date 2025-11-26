@@ -1251,6 +1251,7 @@ This module implements a standardized flat JSON schema where all fields are at t
 | `session_id` | Session identifier | `"session-abc-123"` | ✅ |
 | `cloud_env_type` | Environment type | `"prod"`, `"stage"`, `"dev"` | ✅ |
 | `service_name` | Application/service name | `"elephant_mfe"` | ✅ |
+| `service_component_name` | Specific component within a service | `"auth-handler"`, `"payment-processor"` | ❌ Optional |
 | `cloud_env_unique_id` | Cloud environment ID | `"aws_account_id"` | ✅ |
 | `cloud_env_name` | Environment name | `"ai_team"` | ✅ |
 | `service_account_id` | Service account ID | `"sa-log-writer@project.iam"` | ✅ |
