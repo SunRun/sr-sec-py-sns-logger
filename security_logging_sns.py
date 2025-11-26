@@ -55,6 +55,7 @@ def init_security_logging(
     
     # Default production ARNs and regions
     DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
+    DEFAULT_FAILOVER_TOPIC_ARN = "arn:aws:sns:us-east-2:000576341507:sr-sec-logging-log-topic-failover-prod"
     DEFAULT_REGION = "us-west-2"
     DEFAULT_FAILOVER_REGION = "us-east-2"
     
@@ -76,8 +77,10 @@ def init_security_logging(
     
     # Failover topic configuration
     if failover_topic_arn is None and enable_failover:
-        # Try environment variable for failover topic
+        # Try environment variable for failover topic, then use default
         failover_topic_arn = os.environ.get("SECURITY_LOGS_FAILOVER_TOPIC_ARN")
+        if not failover_topic_arn and not test_mode:
+            failover_topic_arn = DEFAULT_FAILOVER_TOPIC_ARN
     
     if failover_region is None:
         failover_region = os.environ.get("SECURITY_LOGS_FAILOVER_REGION", DEFAULT_FAILOVER_REGION)
