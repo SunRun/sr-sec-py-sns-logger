@@ -89,6 +89,7 @@ class SNSPublisher:
     - Circuit breaker to prevent cascading failures
     - Fast-fail on primary to minimize latency
     - Metrics tracking for monitoring
+    - Optional explicit IAM User credentials support
     """
 
     def __init__(
@@ -98,7 +99,10 @@ class SNSPublisher:
         failover_topic_arn: Optional[str] = None,
         failover_region: Optional[str] = None,
         enable_failover: bool = True,
-        test_mode: bool = False
+        test_mode: bool = False,
+        aws_access_key_id: Optional[str] = None,
+        aws_secret_access_key: Optional[str] = None,
+        aws_session_token: Optional[str] = None
     ):
         """
         Initialize SNS Publisher with optional failover support.
@@ -110,6 +114,9 @@ class SNSPublisher:
             failover_region: Failover AWS region (optional, default: us-east-2)
             enable_failover: Enable automatic failover (default: True)
             test_mode: Enable test mode (no actual publishing)
+            aws_access_key_id: Optional AWS access key ID for IAM User authentication
+            aws_secret_access_key: Optional AWS secret access key for IAM User authentication
+            aws_session_token: Optional AWS session token for temporary credentials
         """
         self.topic_arn = topic_arn
         self.test_mode = test_mode
@@ -135,6 +142,16 @@ class SNSPublisher:
             'total_failures': 0,
         }
         
+        # Build credentials kwargs if provided (for IAM User authentication)
+        credentials_kwargs = {}
+        if aws_access_key_id and aws_secret_access_key:
+            credentials_kwargs = {
+                'aws_access_key_id': aws_access_key_id,
+                'aws_secret_access_key': aws_secret_access_key,
+            }
+            if aws_session_token:
+                credentials_kwargs['aws_session_token'] = aws_session_token
+        
         if not test_mode:
             # Primary region client
             if region_name is None:
@@ -156,7 +173,7 @@ class SNSPublisher:
                 region_name=region_name
             )
             
-            self.sns_client = boto3.client('sns', config=primary_config)
+            self.sns_client = boto3.client('sns', config=primary_config, **credentials_kwargs)
             
             # Create failover client if enabled
             if self.enable_failover:
@@ -173,7 +190,7 @@ class SNSPublisher:
                     region_name=self.failover_region
                 )
                 
-                self.failover_sns_client = boto3.client('sns', config=failover_config)
+                self.failover_sns_client = boto3.client('sns', config=failover_config, **credentials_kwargs)
             else:
                 self.failover_sns_client = None
         else:
