@@ -83,7 +83,7 @@ from .security_log_fields import (
     VALID_EVENT_TYPES,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 

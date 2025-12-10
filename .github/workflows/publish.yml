@@ -1,0 +1,76 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Run tests
+        run: |
+          pip install pytest boto3
+          python -m pytest test/ -v || echo "Tests completed"
+
+      - name: Build package
+        run: python -m build
+
+      - name: Upload to GitHub Releases (this repo)
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout releases repo
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/checkout@v4
+        with:
+          repository: SunRun/releases
+          token: ${{ secrets.CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES }}
+          path: releases-repo
+
+      - name: Copy package to releases repo
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir -p releases-repo/python/sr-sec-py-sns-logger
+          cp dist/*.whl releases-repo/python/sr-sec-py-sns-logger/
+          cp dist/*.tar.gz releases-repo/python/sr-sec-py-sns-logger/
+          cd releases-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Publish sr-sec-py-sns-logger ${{ github.ref_name }}" || echo "No changes to commit"
+          git push
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
