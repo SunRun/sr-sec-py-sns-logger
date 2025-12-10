@@ -154,6 +154,60 @@ export AWS_REGION="us-west-2"
 export SECURITY_LOGS_FAILOVER_REGION="us-east-2"
 ```
 
+**IAM User Credentials (For Applications Not Using IAM Roles):**
+
+If your application uses IAM User credentials (static access keys) instead of IAM Roles (Lambda execution roles, ECS task roles, etc.), you can provide credentials directly:
+
+```python
+import os
+import sr_sec_py_sns_logger as SecurityLogging
+
+# With explicit IAM User credentials
+SecurityLogging.init_security_logging(
+    aws_access_key_id=os.environ.get('MY_AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.environ.get('MY_AWS_SECRET_ACCESS_KEY'),
+    # aws_session_token=os.environ.get('AWS_SESSION_TOKEN'),  # Optional, for temporary credentials
+    test_mode=(os.environ.get('ENV') != 'production'),
+)
+```
+
+> **Note**: If credentials are not provided, the AWS SDK (boto3) uses the default credential chain (environment variables `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, IAM roles, credential files, etc.)
+
+**Required IAM Policy for IAM Users:**
+
+If using IAM User credentials to publish to a cross-account SNS topic, the IAM User needs this policy attached:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowSNSPublishToSecurityLogging",
+      "Effect": "Allow",
+      "Action": "sns:Publish",
+      "Resource": [
+        "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev",
+        "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
+      ]
+    },
+    {
+      "Sid": "AllowKMSForSNS",
+      "Effect": "Allow",
+      "Action": ["kms:GenerateDataKey*", "kms:Decrypt"],
+      "Resource": [
+        "arn:aws:kms:us-west-2:687126124183:key/*",
+        "arn:aws:kms:us-west-2:000576341507:key/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "sns.us-west-2.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+```
+
 **Monitoring Failover:**
 ```python
 # Get failover metrics

@@ -25,7 +25,10 @@ def init_security_logging(
     failover_topic_arn: str = None,
     failover_region: str = None,
     enable_failover: bool = True,
-    test_mode: bool = False
+    test_mode: bool = False,
+    aws_access_key_id: str = None,
+    aws_secret_access_key: str = None,
+    aws_session_token: str = None
 ):
     """
     Initialize the security logging module with optional multi-region failover.
@@ -37,6 +40,9 @@ def init_security_logging(
         failover_region: Failover AWS region. If None, uses us-east-2
         enable_failover: Enable automatic failover (default: True). Set to False to disable failover
         test_mode: If True, logs are printed to console instead of sent to SNS
+        aws_access_key_id: Optional AWS access key ID for IAM User authentication
+        aws_secret_access_key: Optional AWS secret access key for IAM User authentication  
+        aws_session_token: Optional AWS session token for temporary credentials
     
     Example:
         # Basic initialization (no failover)
@@ -49,6 +55,12 @@ def init_security_logging(
             topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic",
             failover_topic_arn="arn:aws:sns:us-east-2:123456789012:my-failover-topic",
             enable_failover=True
+        )
+        
+        # With IAM User credentials (for applications not using IAM Roles)
+        init_security_logging(
+            aws_access_key_id=os.environ.get('MY_AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('MY_AWS_SECRET_ACCESS_KEY')
         )
     """
     global _sns_publisher
@@ -91,7 +103,10 @@ def init_security_logging(
         failover_topic_arn=failover_topic_arn,
         failover_region=failover_region,
         enable_failover=enable_failover,
-        test_mode=test_mode
+        test_mode=test_mode,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token
     )
 
 def _get_publisher() -> SNSPublisher:

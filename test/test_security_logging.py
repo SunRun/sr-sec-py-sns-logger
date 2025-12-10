@@ -39,7 +39,7 @@ class TestSecurityLogging(unittest.TestCase):
     def test_user_login_success(self):
         """Test successful user login logging."""
         result = SecurityLogging.log_user_login(
-            event_type=EventType.LOGIN_SUCCESS,
+            event_type=EventType.LOGIN_ATTEMPT,
             actor_identifier="user@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id="session-123",
@@ -50,7 +50,8 @@ class TestSecurityLogging(unittest.TestCase):
             service_account_id="sa-test@project.iam",
             user_agent="Mozilla/5.0",
             user_role=UserRole.ADMIN,
-            detail="1st time login",
+            auth_protocol=AuthProtocol.FORM_BASED,
+            detail=Detail.USER_INITIATED,
             status=Status.SUCCESS
         )
         
@@ -98,7 +99,7 @@ class TestSecurityLogging(unittest.TestCase):
     def test_invalid_field_values(self):
         """Test that invalid field values are handled gracefully."""
         result = SecurityLogging.log_user_login(
-            event_type=EventType.LOGIN_SUCCESS,
+            event_type=EventType.LOGIN_ATTEMPT,
             actor_identifier="user@company.com",
             actor_type="invalid_actor_type",  # Invalid value
             session_id="session-123",
@@ -109,6 +110,7 @@ class TestSecurityLogging(unittest.TestCase):
             service_account_id="sa-test@project.iam",
             user_agent="Mozilla/5.0",
             user_role="invalid_role",  # Invalid value
+            auth_protocol=AuthProtocol.FORM_BASED,
             status=Status.SUCCESS
         )
         
@@ -146,7 +148,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             # Submit a valid logging call
             future = executor.submit(
                 SecurityLogging.log_user_login,
-                event_type=EventType.LOGIN_SUCCESS,
+                event_type=EventType.LOGIN_ATTEMPT,
                 actor_identifier="user@company.com",
                 actor_type=ActorType.HUMAN_INTERNAL,
                 session_id="session-123",
@@ -157,11 +159,13 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                 service_account_id="sa-test@project.iam",
                 user_agent="Mozilla/5.0",
                 user_role=UserRole.ADMIN,
+                auth_protocol=AuthProtocol.FORM_BASED,
+                detail=Detail.USER_INITIATED,
                 status=Status.SUCCESS
             )
             
             # Use fire-and-forget
-            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             # Wait a moment for async processing
             time.sleep(0.1)
@@ -194,7 +198,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             )
             
             # Use fire-and-forget
-            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             # Wait a moment for async processing
             time.sleep(0.1)
@@ -203,7 +207,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             self.assertEqual(len(error_messages), 1)
             error_msg, event_type = error_messages[0]
             self.assertIn("Security logging failed", error_msg)
-            self.assertEqual(event_type, EventType.LOGIN_SUCCESS)
+            self.assertEqual(event_type, EventType.LOGIN_ATTEMPT)
 
     def test_fire_and_forget_failure_without_handler(self):
         """Test fire-and-forget with failure and no custom error handler."""
@@ -221,7 +225,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                 )
                 
                 # Use fire-and-forget
-                SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
                 
                 # Wait a moment for async processing
                 time.sleep(0.1)
@@ -246,7 +250,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             future = executor.submit(failing_function)
             
             # Use fire-and-forget
-            SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+            SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             # Wait a moment for async processing
             time.sleep(0.1)
@@ -256,7 +260,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             error_msg, event_type = error_messages[0]
             self.assertIn("Security logging error", error_msg)
             self.assertIn("Test exception", error_msg)
-            self.assertEqual(event_type, EventType.LOGIN_SUCCESS)
+            self.assertEqual(event_type, EventType.LOGIN_ATTEMPT)
 
     def test_fire_and_forget_non_blocking(self):
         """Test that fire-and-forget is truly non-blocking."""
@@ -268,7 +272,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
             for i in range(5):
                 future = executor.submit(
                     SecurityLogging.log_user_login,
-                    event_type=EventType.LOGIN_SUCCESS,
+                    event_type=EventType.LOGIN_ATTEMPT,
                     actor_identifier=f"user{i}@company.com",
                     actor_type=ActorType.HUMAN_INTERNAL,
                     session_id=f"session-{i}",
@@ -279,10 +283,12 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                     service_account_id="sa-test@project.iam",
                     user_agent="Mozilla/5.0",
                     user_role=UserRole.ADMIN,
+                    auth_protocol=AuthProtocol.FORM_BASED,
+                    detail=Detail.USER_INITIATED,
                     status=Status.SUCCESS
                 )
                 futures.append(future)
-                SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
         
         elapsed_time = time.time() - start_time
         
@@ -310,7 +316,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                     # Valid call
                     future = executor.submit(
                         SecurityLogging.log_user_login,
-                        event_type=EventType.LOGIN_SUCCESS,
+                        event_type=EventType.LOGIN_ATTEMPT,
                         actor_identifier=f"user{i}@company.com",
                         actor_type=ActorType.HUMAN_INTERNAL,
                         session_id=f"session-{i}",
@@ -321,6 +327,8 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                         service_account_id="sa-test@project.iam",
                         user_agent="Mozilla/5.0",
                         user_role=UserRole.ADMIN,
+                        auth_protocol=AuthProtocol.FORM_BASED,
+                        detail=Detail.USER_INITIATED,
                         status=Status.SUCCESS
                     )
                 else:
@@ -335,7 +343,7 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                     )
                 
                 futures.append(future)
-                SecurityLogging.fire_and_forget(future, EventType.LOGIN_SUCCESS)
+                SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
             
             # Wait for all to complete
             time.sleep(0.2)
