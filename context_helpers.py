@@ -53,25 +53,6 @@ class SecurityContext(TypedDict, total=False):
     service_account_id: Optional[str]
 
 
-class ValidatedSecurityContext(TypedDict):
-    """
-    Validated security context with all required fields guaranteed to be present.
-    Use `validate_security_context()` to convert a `SecurityContext` to this type.
-    """
-    # Required fields (guaranteed present)
-    actor_identifier: str
-    session_id: str
-    cloud_env_type: str
-    cloud_env_name: str
-    cloud_env_unique_id: str
-    service_name: str
-    service_account_id: str
-    
-    # Optional fields (may be None)
-    user_agent: Optional[str]
-    source_ip_address: Optional[str]
-    endpoint_path: Optional[str]
-    http_method: Optional[str]
 
 
 class SecurityContextOptions(TypedDict, total=False):
@@ -809,24 +790,6 @@ REQUIRED_CONTEXT_FIELDS = [
 ]
 
 
-class SecurityContextValidationError(Exception):
-    """
-    Validation error raised when required security context fields are missing.
-    This error is designed to be caught at development/runtime.
-    """
-    
-    def __init__(self, missing_fields: List[str]):
-        self.missing_fields = missing_fields
-        message = (
-            f"Security context validation failed. Missing required fields: {', '.join(missing_fields)}. "
-            f"These fields could not be auto-extracted. Either:\n"
-            f"  1. Set the required environment variables (CLOUD_ENV_TYPE, CLOUD_ENV_NAME, etc.)\n"
-            f"  2. Pass explicit values in options dict\n"
-            f"  3. Ensure the request/session objects contain the necessary data"
-        )
-        super().__init__(message)
-
-
 def get_missing_context_fields(context: SecurityContext) -> List[str]:
     """
     Check if a security context has all required base fields populated.
@@ -841,84 +804,57 @@ def get_missing_context_fields(context: SecurityContext) -> List[str]:
     return [field for field in REQUIRED_CONTEXT_FIELDS if not context.get(field)]
 
 
-def validate_security_context(context: SecurityContext) -> ValidatedSecurityContext:
+def diagnose_security_context(context: SecurityContext) -> Dict[str, Any]:
     """
-    Validate that all required fields are present in the security context.
+    Check which fields could not be auto-extracted and provide suggestions.
     
-    **Use this to ensure runtime failure if auto-extraction fails.**
-    
-    This function will raise a `SecurityContextValidationError` if any required
-    fields are None, ensuring you catch configuration issues early.
+    Use this during development to understand what environment variables
+    need to be configured for full auto-extraction.
     
     Args:
-        context: The security context to validate
+        context: The security context to check
         
     Returns:
-        ValidatedSecurityContext with all required fields guaranteed
-        
-    Raises:
-        SecurityContextValidationError: if any required fields are missing
-        
+        Dict with:
+            - has_missing: bool indicating if any fields are missing
+            - missing_fields: list of field names that are missing
+            - suggestions: list of dicts with field, env_var, and description
+            
     Example:
         context = create_security_context(request, session)
+        diagnostics = diagnose_security_context(context)
         
-        # This will raise at runtime if any required fields are None
-        validated_context = validate_security_context(context)
-        
-        # Now all required fields are guaranteed present
-        log_record_access(
-            **validated_context,
-            event_type=EventType.RECORD_ACCESS,
-            actor_type=ActorType.HUMAN_INTERNAL,  # Still required manually
-            status=Status.SUCCESS
-        )
+        if diagnostics['has_missing']:
+            print('Missing fields and how to fix:')
+            for s in diagnostics['suggestions']:
+                print(f"  {s['field']}: set {s['env_var']}")
     """
     missing = get_missing_context_fields(context)
     
-    if missing:
-        raise SecurityContextValidationError(missing)
+    env_var_map = {
+        'actor_identifier': {'env_var': 'N/A - from auth session', 'description': 'Pass session with user email'},
+        'session_id': {'env_var': 'N/A - derived from session', 'description': 'Pass session with user email and expires'},
+        'cloud_env_type': {'env_var': 'CLOUD_ENV_TYPE or NEXT_PUBLIC_ENVIRONMENT_NAME', 'description': 'Environment type (prod, dev, etc.)'},
+        'cloud_env_name': {'env_var': 'CLOUD_ENV_NAME or NEXT_PUBLIC_ENVIRONMENT_NAME', 'description': 'Human-readable environment name'},
+        'cloud_env_unique_id': {'env_var': 'AWS_ACCOUNT_ID or CLOUD_ENV_UNIQUE_ID', 'description': 'AWS Account ID'},
+        'service_name': {'env_var': 'SERVICE_NAME', 'description': 'Application/service name'},
+        'service_account_id': {'env_var': 'SERVICE_ACCOUNT_ID or AWS_EXECUTION_ROLE_ARN', 'description': 'IAM role/user ARN'},
+    }
     
-    # Return validated context with guaranteed fields
-    return ValidatedSecurityContext(
-        actor_identifier=context['actor_identifier'],  # type: ignore
-        session_id=context['session_id'],  # type: ignore
-        cloud_env_type=context['cloud_env_type'],  # type: ignore
-        cloud_env_name=context['cloud_env_name'],  # type: ignore
-        cloud_env_unique_id=context['cloud_env_unique_id'],  # type: ignore
-        service_name=context['service_name'],  # type: ignore
-        service_account_id=context['service_account_id'],  # type: ignore
-        user_agent=context.get('user_agent'),
-        source_ip_address=context.get('source_ip_address'),
-        endpoint_path=context.get('endpoint_path'),
-        http_method=context.get('http_method'),
-    )
-
-
-def create_and_validate_security_context(
-    request: Any = None,
-    session: Optional[Dict[str, Any]] = None,
-    options: Optional[SecurityContextOptions] = None
-) -> ValidatedSecurityContext:
-    """
-    Create and validate a security context in one step.
+    suggestions = []
+    for field in missing:
+        info = env_var_map.get(field, {'env_var': 'Unknown', 'description': 'Check documentation'})
+        suggestions.append({
+            'field': field,
+            'env_var': info['env_var'],
+            'description': info['description']
+        })
     
-    This is a convenience function that combines `create_security_context` and
-    `validate_security_context`. Use this when you want to fail fast if any
-    required fields cannot be auto-extracted.
-    
-    Args:
-        request: The incoming request
-        session: The auth session
-        options: Optional overrides
-        
-    Returns:
-        ValidatedSecurityContext with all required fields guaranteed
-        
-    Raises:
-        SecurityContextValidationError: if any required fields are missing
-    """
-    context = create_security_context(request, session, options)
-    return validate_security_context(context)
+    return {
+        'has_missing': len(missing) > 0,
+        'missing_fields': missing,
+        'suggestions': suggestions
+    }
 
 
 def warn_missing_context_fields(

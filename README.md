@@ -925,9 +925,9 @@ The package includes helper functions that automatically extract common security
 ```python
 from sr_sec_py_sns_logger import (
     create_security_context,       # Main helper: extracts all available fields
-    create_and_validate_security_context,  # Create + validate in one step (raises if missing)
-    validate_security_context,     # Validate and get strict types
-    SecurityContextValidationError,  # Exception class for missing fields
+    get_missing_context_fields,    # Check which fields couldn't be auto-extracted
+    diagnose_security_context,     # Get detailed info on missing fields + how to fix
+    warn_missing_context_fields,   # Log warnings for missing fields (dev helper)
 )
 ```
 
@@ -961,11 +961,13 @@ These fields **must** be set manually and cannot be auto-extracted:
 
 ### Usage Example
 
-#### Basic Usage with Validation
+#### Basic Usage
 
 ```python
+import os
 from sr_sec_py_sns_logger import (
-    create_and_validate_security_context,
+    create_security_context,
+    warn_missing_context_fields,
     log_record_access,
     fire_and_forget,
     EventType,
@@ -973,41 +975,39 @@ from sr_sec_py_sns_logger import (
     ActorType,
     UserRole,
     Category,
-    SecurityContextValidationError,
 )
 from concurrent.futures import ThreadPoolExecutor
 
 def handle_request(request_headers, session, request_path, request_method):
-    try:
-        # Creates context and raises if any required field is missing
-        context = create_and_validate_security_context(
-            request_headers=request_headers,
-            session=session,
-            request_path=request_path,
-            request_method=request_method,
+    # Auto-extract what we can from request/session/environment
+    context = create_security_context(
+        request_headers=request_headers,
+        session=session,
+        request_path=request_path,
+        request_method=request_method,
+    )
+    
+    # Optional: warn in development if fields couldn't be extracted
+    if os.environ.get('ENV_TYPE') == 'development':
+        warn_missing_context_fields(context)
+    
+    # Use the context - logging function will return error if required fields missing
+    with ThreadPoolExecutor() as executor:
+        future = executor.submit(
+            log_record_access,
+            **context,                     # All auto-extracted fields
+            event_type=EventType.RECORD_ACCESS,
+            actor_type=ActorType.HUMAN_INTERNAL,  # Manual: business logic
+            user_role=UserRole.ADMIN,              # Manual: from your auth system
+            status=Status.SUCCESS,
+            category=Category.CUSTOMER_DATA_ACTIONS,
+            id_list=['customer-123'],
         )
         
-        # Now use the validated context
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                log_record_access,
-                **context,                     # All auto-extracted fields
-                event_type=EventType.RECORD_ACCESS,
-                actor_type=ActorType.HUMAN_INTERNAL,  # Manual: business logic
-                user_role=UserRole.ADMIN,              # Manual: from your auth system
-                status=Status.SUCCESS,
-                category=Category.CUSTOMER_DATA_ACTIONS,
-                id_list=['customer-123'],
-            )
-            fire_and_forget(future, 'record_access')
-        
-        return {"success": True}
-        
-    except SecurityContextValidationError as error:
-        # Missing required fields - fix your environment configuration
-        print(f'Missing security context fields: {error.missing_fields}')
-        # In development, this helps you identify what env vars to set
-        raise
+        # fire_and_forget handles the result - if missing fields, it will log error
+        fire_and_forget(future, 'record_access')
+    
+    return {"success": True}
 
 # Example session dict (from your auth system)
 session = {
@@ -1045,32 +1045,37 @@ SERVICE_ACCOUNT_ID=arn:aws:iam::123456789012:role/my-role
 AWS_EXECUTION_ROLE_ARN=arn:aws:iam::123456789012:role/my-role
 ```
 
-### Runtime Failure for Missing Fields
+### Handling Missing Fields
 
-The `validate_security_context()` function ensures that if auto-extraction fails (returns `None`), your code will fail **at runtime** with a clear error message listing all missing fields:
+Auto-extraction is **best-effort** - if environment variables aren't set, the fields will be `None`. The logging functions handle this gracefully by returning a failure response (not raising):
 
 ```python
-# This raises SecurityContextValidationError if any required field is None
-validated_context = validate_security_context(context)
+result = log_record_access(**context, event_type=EventType.RECORD_ACCESS, ...)
+
+if result['status'] == 'failure':
+    # result['message'] will say "Missing required fields: cloud_env_type, service_name"
+    print(result['message'])
 ```
 
-To catch configuration issues during development/testing:
+### Diagnosing Missing Fields in Development
+
+Use `diagnose_security_context()` to get detailed information about what's missing and how to fix it:
 
 ```python
-# In your test setup or development mode
-try:
-    context = create_and_validate_security_context(...)
-except SecurityContextValidationError as error:
-    print(f"""
-Missing security context fields: {', '.join(error.missing_fields)}
+from sr_sec_py_sns_logger import create_security_context, diagnose_security_context
 
-Please set these environment variables:
-- NEXT_PUBLIC_ENVIRONMENT_NAME for cloud_env_type and cloud_env_name
-- SERVICE_NAME for service_name
-- AWS_ACCOUNT_ID for cloud_env_unique_id
-- SERVICE_ACCOUNT_ID for service_account_id
-    """)
-    sys.exit(1)  # Fail the test
+context = create_security_context(request_headers, session)
+diagnostics = diagnose_security_context(context)
+
+if diagnostics['has_missing']:
+    print('Missing fields - set these environment variables:')
+    for suggestion in diagnostics['suggestions']:
+        print(f"  {suggestion['field']}: {suggestion['env_var']} ({suggestion['description']})")
+
+# Example output:
+# Missing fields - set these environment variables:
+#   cloud_env_type: CLOUD_ENV_TYPE or NEXT_PUBLIC_ENVIRONMENT_NAME (Environment type)
+#   service_name: SERVICE_NAME (Application/service name)
 ```
 
 ---

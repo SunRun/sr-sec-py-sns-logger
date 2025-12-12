@@ -87,8 +87,6 @@ from .context_helpers import (
     create_security_context,
     create_server_context,
     create_lambda_context,
-    create_and_validate_security_context,
-    validate_security_context,
     
     # Individual extraction functions
     extract_user_agent,
@@ -103,10 +101,10 @@ from .context_helpers import (
     extract_service_name,
     extract_service_account_id,
     
-    # Validation helpers
+    # Diagnostic helpers (informational, no exceptions)
     get_missing_context_fields,
     warn_missing_context_fields,
-    SecurityContextValidationError,
+    diagnose_security_context,
     REQUIRED_CONTEXT_FIELDS,
 )
 
