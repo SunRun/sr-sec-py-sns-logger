@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from security_logging_sns import (
     init_security_logging, log_user_login, log_mfa_challenge, log_user_logout,
     log_permission_role_change, log_user_status_change, log_impersonation_event,
-    log_user_invite_event, log_api_request, log_multi_record_access,
-    log_single_record_access, log_mfa_status_change, log_password_change_reset,
+    log_user_invite_event, log_api_request, log_record_access,
+    log_mfa_status_change, log_password_change_reset,
     log_api_key_lifecycle, log_auth_mechanism_modification
 )
 from security_log_fields import (
@@ -84,9 +84,9 @@ def test_all_functionality_preserved():
         )
         test_results.append(("API Request", result))
         
-        print("3️⃣ Testing Multi-Record Access...")
-        result = log_multi_record_access(
-            event_type=EventType.MULTI_RECORD_ACCESS,
+        print("3️⃣ Testing Record Access...")
+        result = log_record_access(
+            event_type=EventType.RECORD_ACCESS,
             actor_identifier="analyst@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id=f"session-multi-{timestamp_suffix}",
@@ -99,10 +99,9 @@ def test_all_functionality_preserved():
             service_account_id="sa-reports@company.iam.amazonaws.com",
             endpoint_path="/reports/customer-data",
             data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
-            record_count=50,
-            customer_id_list=["test-001", "test-002", "test-003"]
+            id_list=["test-001", "test-002", "test-003"]
         )
-        test_results.append(("Multi-Record Access", result))
+        test_results.append(("Record Access", result))
         
         print()
         print("=" * 80)

@@ -26,8 +26,7 @@ from .security_logging_sns import (
     log_api_request,
     
     # Customer Data Actions functions
-    log_multi_record_access,
-    log_single_record_access,
+    log_record_access,
     
     # Key Configuration Changes functions
     log_mfa_status_change,
@@ -83,7 +82,7 @@ from .security_log_fields import (
     VALID_EVENT_TYPES,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 

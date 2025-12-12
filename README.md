@@ -8,9 +8,11 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - ✅ **Compliance**: Covers all High priority security events with required data points
 - 🧪 **Test Mode**: Test without AWS credentials for development and validation
 - 📦 **Simple API**: One-line initialization, clean function calls
-- 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
+- 🛡️ **Validation**: Comprehensive validation with detailed error messages showing all missing fields
 - 📋 **Schema Compliant**: Implements standardized flat JSON structure with all required security fields
 - ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
+- 📊 **Auto-Batching**: Automatically handles large record lists that exceed SNS message limits
+- 🔍 **Context Extraction**: Automatically captures function/file name for enhanced debugging
 
 ---
 
@@ -690,9 +692,9 @@ Before implementing security logging, create a comprehensive list of all securit
 
 **API & Data Access:**
 - API endpoint access (especially sensitive endpoints)
-- Customer data viewing/modification
+- Customer/entity data viewing/modification
 - Bulk data exports or reports
-- Single customer record access
+- Record access (single or multiple records)
 
 **Configuration Changes:**
 - MFA device management
@@ -721,10 +723,9 @@ For each activity you identified, determine which security logging function to u
 📖 **Review the [API Endpoint Access functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876)**
 - ➡️ Use: [`log_api_request()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876) - API endpoint access (success/failure)
 
-#### **Is the activity about viewing or modifying customer data?**
+#### **Is the activity about viewing or modifying customer/entity data?**
 📖 **Review the [Customer Data Actions functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984)**
-- ➡️ Use: [`log_multi_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984) - Viewing/exporting multiple customer records
-- ➡️ Use: [`log_single_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1084) - Viewing/modifying single customer record
+- ➡️ Use: [`log_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984) - Viewing/modifying records (single or multiple - pass 1 or more IDs in `id_list`)
 
 #### **Is the activity about security configuration changes?**
 📖 **Review the [Key Configuration Changes functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1182)**
@@ -757,10 +758,10 @@ Create a checklist to track your implementation progress:
 ## 📋 Part 3: API Function Reference
 
 ### Available Functions
-The library provides 14 security logging functions covering:
+The library provides 13 security logging functions covering:
 - **Authentication & Session**: `log_user_login()`, `log_mfa_challenge()`, `log_user_logout()`
 - **Authorization & Access**: `log_permission_role_change()`, `log_user_status_change()`, `log_impersonation_event()`, `log_user_invite_event()`
-- **API & Data Access**: `log_api_request()`, `log_multi_record_access()`, `log_single_record_access()`
+- **API & Data Access**: `log_api_request()`, `log_record_access()` (unified function for single or multiple records)
 - **Key Management**: `log_mfa_status_change()`, `log_password_change_reset()`, `log_api_key_lifecycle()`, `log_auth_mechanism_modification()`
 
 ### Function Signature Pattern
@@ -1338,8 +1339,7 @@ Additional required fields based on the specific event type. The `detail` field 
 ##### Customer Data Actions Events
 | Event Type | Required Fields |
 |------------|----------------|
-| **Multi-Record Actions** (`multi_record_access`) | `endpoint_path`, `data_sensitivity_level`, `record_count`, `customer_id_list` |
-| **Single-Record Actions** (`single_record_access`) | `customer_id`, `fields_accessed` |
+| **Record Access** (`record_access`) | `endpoint_path`, `data_sensitivity_level`, `id_list` (record_count is auto-calculated) |
 
 ##### Key Configuration Changes Events
 | Event Type | Required Fields |

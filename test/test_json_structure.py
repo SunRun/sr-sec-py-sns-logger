@@ -11,7 +11,7 @@ import json
 # Add current directory to path so we can import our modules
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from security_logging_sns import init_security_logging, log_multi_record_access, log_single_record_access
+from security_logging_sns import init_security_logging, log_record_access
 from security_log_fields import EventType, ActorType, CloudEnvType, Detail, DataSensitivityLevel
 
 def test_json_structure_preservation():
@@ -23,10 +23,10 @@ def test_json_structure_preservation():
     # Initialize in test mode
     init_security_logging(test_mode=True)
     
-    # Test multi-record access with customer_id_list
-    print("Testing customer_id_list as JSON array...")
-    result = log_multi_record_access(
-        event_type=EventType.MULTI_RECORD_ACCESS,
+    # Test record access with id_list
+    print("Testing id_list as JSON array...")
+    result = log_record_access(
+        event_type=EventType.RECORD_ACCESS,
         actor_identifier="analyst@company.com",
         actor_type=ActorType.HUMAN_INTERNAL,
         session_id="test-session-123",
@@ -37,8 +37,7 @@ def test_json_structure_preservation():
         service_account_id="sa-reports@company.iam.amazonaws.com",
         endpoint_path="/reports/customer-data",
         data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
-        record_count=3,
-        customer_id_list=["cust-001", "cust-002", "cust-003"],  # This should remain an array
+        id_list=["cust-001", "cust-002", "cust-003"],  # This should remain an array
         detail=Detail.EXPORT_REPORT
     )
     
@@ -47,20 +46,20 @@ def test_json_structure_preservation():
         message_content = result.get("message_content", "{}")
         try:
             parsed_message = json.loads(message_content)
-            customer_id_list = parsed_message.get("customer_id_list")
+            id_list = parsed_message.get("id_list")
             
             print(f"✅ Log published successfully")
-            print(f"✅ customer_id_list type: {type(customer_id_list)}")
-            print(f"✅ customer_id_list value: {customer_id_list}")
+            print(f"✅ id_list type: {type(id_list)}")
+            print(f"✅ id_list value: {id_list}")
             
             # Verify it's still a list
-            if isinstance(customer_id_list, list):
-                print("✅ customer_id_list is properly preserved as JSON array")
-                print(f"✅ Array length: {len(customer_id_list)}")
-                print(f"✅ Array elements: {customer_id_list}")
+            if isinstance(id_list, list):
+                print("✅ id_list is properly preserved as JSON array")
+                print(f"✅ Array length: {len(id_list)}")
+                print(f"✅ Array elements: {id_list}")
                 
                 # Verify elements are sanitized but still strings
-                for i, item in enumerate(customer_id_list):
+                for i, item in enumerate(id_list):
                     if isinstance(item, str):
                         print(f"✅ Element {i}: '{item}' (type: {type(item).__name__})")
                     else:
@@ -68,8 +67,8 @@ def test_json_structure_preservation():
                 
                 return True
             else:
-                print(f"❌ customer_id_list is not an array! Type: {type(customer_id_list)}")
-                print(f"❌ Value: {customer_id_list}")
+                print(f"❌ id_list is not an array! Type: {type(id_list)}")
+                print(f"❌ Value: {id_list}")
                 return False
                 
         except json.JSONDecodeError as e:
@@ -83,8 +82,8 @@ def test_fields_accessed_array():
     """Test that fields_accessed remains a proper JSON array."""
     
     print("\nTesting fields_accessed as JSON array...")
-    result = log_single_record_access(
-        event_type=EventType.SINGLE_RECORD_ACCESS,
+    result = log_record_access(
+        event_type=EventType.RECORD_ACCESS,
         actor_identifier="support@company.com",
         actor_type=ActorType.HUMAN_INTERNAL,
         session_id="test-session-456",
@@ -93,7 +92,9 @@ def test_fields_accessed_array():
         cloud_env_unique_id="687126124183",
         cloud_env_name="dev-us-west-2",
         service_account_id="sa-customer@company.iam.amazonaws.com",
-        customer_id="cust-12345",
+        endpoint_path="/api/customers/cust-12345",
+        data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+        id_list=["cust-12345"],
         fields_accessed=["email", "phone", "address"],  # This should remain an array
         detail=Detail.VIEW_RECORD
     )
@@ -126,7 +127,7 @@ def test_malicious_array_sanitization():
     """Test that malicious content in arrays is sanitized but structure preserved."""
     
     print("\nTesting malicious content sanitization in arrays...")
-    malicious_customer_ids = [
+    malicious_ids = [
         "cust-001",
         "cust%s%s%s",  # Format string attack
         "cust{0}{1}",  # Brace format attack
@@ -134,8 +135,8 @@ def test_malicious_array_sanitization():
         "cust\x00injection"  # Null byte injection
     ]
     
-    result = log_multi_record_access(
-        event_type=EventType.MULTI_RECORD_ACCESS,
+    result = log_record_access(
+        event_type=EventType.RECORD_ACCESS,
         actor_identifier="analyst@company.com",
         actor_type=ActorType.HUMAN_INTERNAL,
         session_id="test-session-789",
@@ -146,8 +147,7 @@ def test_malicious_array_sanitization():
         service_account_id="sa-reports@company.iam.amazonaws.com",
         endpoint_path="/reports/customer-data",
         data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
-        record_count=len(malicious_customer_ids),
-        customer_id_list=malicious_customer_ids,
+        id_list=malicious_ids,
         detail=Detail.EXPORT_REPORT
     )
     
@@ -155,15 +155,15 @@ def test_malicious_array_sanitization():
         message_content = result.get("message_content", "{}")
         try:
             parsed_message = json.loads(message_content)
-            customer_id_list = parsed_message.get("customer_id_list")
+            id_list = parsed_message.get("id_list")
             
             print(f"✅ Log published successfully with malicious input")
-            print(f"✅ customer_id_list type: {type(customer_id_list)}")
+            print(f"✅ id_list type: {type(id_list)}")
             
-            if isinstance(customer_id_list, list):
+            if isinstance(id_list, list):
                 print("✅ Array structure preserved despite malicious content")
-                for i, item in enumerate(customer_id_list):
-                    original = malicious_customer_ids[i]
+                for i, item in enumerate(id_list):
+                    original = malicious_ids[i]
                     sanitized = item
                     print(f"  Original: '{original}' → Sanitized: '{sanitized}'")
                     
@@ -179,7 +179,7 @@ def test_malicious_array_sanitization():
                 
                 return True
             else:
-                print(f"❌ Array structure lost! Type: {type(customer_id_list)}")
+                print(f"❌ Array structure lost! Type: {type(id_list)}")
                 return False
                 
         except json.JSONDecodeError as e:
