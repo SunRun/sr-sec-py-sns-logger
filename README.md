@@ -42,6 +42,12 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 13. [API & Data Access Events](#api--data-access-events)
 14. [Key Configuration & Security Changes](#key-configuration--security-changes)
 
+### Part 3.5: Auto-Context Extraction Helpers
+15. [Available Context Helpers](#available-context-helpers)
+16. [Auto-Extracted Fields](#auto-extracted-fields)
+17. [Fields Requiring Manual Input](#fields-requiring-manual-input)
+18. [Runtime Failure for Missing Fields](#runtime-failure-for-missing-fields)
+
 ### Part 4: Production Readiness
 15. [GitHub Actions CI/CD Setup](#github-actions-cicd-setup)
 16. [AWS IAM Permissions](#aws-iam-permissions)
@@ -907,6 +913,165 @@ with ThreadPoolExecutor() as executor:
 ```
 
 > **📝 Note**: For complete examples of all 14 available functions, see [`example_publish.py`](example_publish.py).
+
+---
+
+## 📋 Part 3.5: Auto-Context Extraction Helpers
+
+The package includes helper functions that automatically extract common security context fields from your application request context, reducing boilerplate and ensuring consistency.
+
+### Available Context Helpers
+
+```python
+from sr_sec_py_sns_logger import (
+    create_security_context,       # Main helper: extracts all available fields
+    create_and_validate_security_context,  # Create + validate in one step (raises if missing)
+    validate_security_context,     # Validate and get strict types
+    SecurityContextValidationError,  # Exception class for missing fields
+)
+```
+
+### Auto-Extracted Fields
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `actor_identifier` | `session['user']['email']` | From auth session dict |
+| `user_agent` | `request_headers['user-agent']` | Browser/client user agent |
+| `source_ip_address` | `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` | Client IP from proxy headers |
+| `endpoint_path` | `request_path` parameter | Request path |
+| `http_method` | `request_method` parameter | GET, POST, etc. |
+| `session_id` | SHA256 hash of `email + expires` | Consistent per-session tracking |
+| `cloud_env_type` | `CLOUD_ENV_TYPE`, `NEXT_PUBLIC_ENVIRONMENT_NAME`, `NODE_ENV` | Auto-mapped to standardized values |
+| `cloud_env_name` | `CLOUD_ENV_NAME`, `NEXT_PUBLIC_ENVIRONMENT_NAME` | Human-readable environment name |
+| `cloud_env_unique_id` | `AWS_ACCOUNT_ID`, ARN parsing | AWS Account ID |
+| `service_name` | `SERVICE_NAME` env var | Application/service name |
+| `service_account_id` | `SERVICE_ACCOUNT_ID`, `AWS_EXECUTION_ROLE_ARN` | IAM role/user ARN |
+
+### Fields Requiring Manual Input
+
+These fields **must** be set manually and cannot be auto-extracted:
+
+| Field | Why Manual? |
+|-------|-------------|
+| `actor_type` | Business logic decision (HUMAN_INTERNAL, SYSTEM, etc.) |
+| `user_role` | Application-specific role from your database/auth system |
+| `event_type` | Specific to the action being performed |
+| `status` | Outcome of the operation |
+| Other event-specific fields | Depends on the event type |
+
+### Usage Example
+
+#### Basic Usage with Validation
+
+```python
+from sr_sec_py_sns_logger import (
+    create_and_validate_security_context,
+    log_record_access,
+    fire_and_forget,
+    EventType,
+    Status,
+    ActorType,
+    UserRole,
+    Category,
+    SecurityContextValidationError,
+)
+from concurrent.futures import ThreadPoolExecutor
+
+def handle_request(request_headers, session, request_path, request_method):
+    try:
+        # Creates context and raises if any required field is missing
+        context = create_and_validate_security_context(
+            request_headers=request_headers,
+            session=session,
+            request_path=request_path,
+            request_method=request_method,
+        )
+        
+        # Now use the validated context
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                log_record_access,
+                **context,                     # All auto-extracted fields
+                event_type=EventType.RECORD_ACCESS,
+                actor_type=ActorType.HUMAN_INTERNAL,  # Manual: business logic
+                user_role=UserRole.ADMIN,              # Manual: from your auth system
+                status=Status.SUCCESS,
+                category=Category.CUSTOMER_DATA_ACTIONS,
+                id_list=['customer-123'],
+            )
+            fire_and_forget(future, 'record_access')
+        
+        return {"success": True}
+        
+    except SecurityContextValidationError as error:
+        # Missing required fields - fix your environment configuration
+        print(f'Missing security context fields: {error.missing_fields}')
+        # In development, this helps you identify what env vars to set
+        raise
+
+# Example session dict (from your auth system)
+session = {
+    'user': {'email': 'user@example.com'},
+    'expires': '2024-01-01T00:00:00Z'
+}
+
+# Example request headers
+request_headers = {
+    'user-agent': 'Mozilla/5.0...',
+    'x-forwarded-for': '1.2.3.4'
+}
+```
+
+### Required Environment Variables
+
+For full auto-extraction to work, configure these environment variables:
+
+```bash
+# Required for cloud_env_type and cloud_env_name
+NEXT_PUBLIC_ENVIRONMENT_NAME=production  # or staging, development, etc.
+# OR
+CLOUD_ENV_TYPE=prod
+CLOUD_ENV_NAME=Production
+
+# Required for service_name
+SERVICE_NAME=my-python-service
+
+# Required for cloud_env_unique_id
+AWS_ACCOUNT_ID=123456789012
+
+# Required for service_account_id
+SERVICE_ACCOUNT_ID=arn:aws:iam::123456789012:role/my-role
+# OR
+AWS_EXECUTION_ROLE_ARN=arn:aws:iam::123456789012:role/my-role
+```
+
+### Runtime Failure for Missing Fields
+
+The `validate_security_context()` function ensures that if auto-extraction fails (returns `None`), your code will fail **at runtime** with a clear error message listing all missing fields:
+
+```python
+# This raises SecurityContextValidationError if any required field is None
+validated_context = validate_security_context(context)
+```
+
+To catch configuration issues during development/testing:
+
+```python
+# In your test setup or development mode
+try:
+    context = create_and_validate_security_context(...)
+except SecurityContextValidationError as error:
+    print(f"""
+Missing security context fields: {', '.join(error.missing_fields)}
+
+Please set these environment variables:
+- NEXT_PUBLIC_ENVIRONMENT_NAME for cloud_env_type and cloud_env_name
+- SERVICE_NAME for service_name
+- AWS_ACCOUNT_ID for cloud_env_unique_id
+- SERVICE_ACCOUNT_ID for service_account_id
+    """)
+    sys.exit(1)  # Fail the test
+```
 
 ---
 

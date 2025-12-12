@@ -82,7 +82,35 @@ from .security_log_fields import (
     VALID_EVENT_TYPES,
 )
 
-__version__ = "1.1.0"
+from .context_helpers import (
+    # Main context creation functions
+    create_security_context,
+    create_server_context,
+    create_lambda_context,
+    create_and_validate_security_context,
+    validate_security_context,
+    
+    # Individual extraction functions
+    extract_user_agent,
+    extract_source_ip,
+    extract_endpoint_path,
+    extract_http_method,
+    extract_actor_identifier,
+    extract_session_id,
+    extract_cloud_env_type,
+    extract_cloud_env_name,
+    extract_cloud_env_unique_id,
+    extract_service_name,
+    extract_service_account_id,
+    
+    # Validation helpers
+    get_missing_context_fields,
+    warn_missing_context_fields,
+    SecurityContextValidationError,
+    REQUIRED_CONTEXT_FIELDS,
+)
+
+__version__ = "1.2.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 
