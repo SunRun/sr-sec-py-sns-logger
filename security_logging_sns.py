@@ -322,14 +322,12 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             HttpMethod.DELETE, HttpMethod.HEAD, HttpMethod.OPTIONS
         ],
         "endpoint_sensitivity": [
-            EndpointSensitivity.PUBLIC, EndpointSensitivity.INTERNAL, EndpointSensitivity.CONFIDENTIAL,
-            EndpointSensitivity.PII_BASIC, EndpointSensitivity.PII_FINANCIAL, EndpointSensitivity.PII_HEALTH,
-            EndpointSensitivity.CREDENTIAL_MANAGEMENT, EndpointSensitivity.SYSTEM_ADMIN, EndpointSensitivity.AUTHENTICATION
+            EndpointSensitivity.PUBLIC, EndpointSensitivity.INTERNAL, 
+            EndpointSensitivity.CONFIDENTIAL, EndpointSensitivity.RESTRICTED
         ],
         "data_sensitivity_level": [
-            DataSensitivityLevel.PUBLIC, DataSensitivityLevel.INTERNAL, DataSensitivityLevel.CONFIDENTIAL,
-            DataSensitivityLevel.PII_BASIC, DataSensitivityLevel.PII_FINANCIAL, DataSensitivityLevel.PII_HEALTH,
-            DataSensitivityLevel.CREDENTIAL_MANAGEMENT, DataSensitivityLevel.SYSTEM_ADMIN, DataSensitivityLevel.AUTHENTICATION
+            DataSensitivityLevel.PUBLIC, DataSensitivityLevel.INTERNAL, 
+            DataSensitivityLevel.CONFIDENTIAL, DataSensitivityLevel.RESTRICTED
         ],
         "user_role": [
             UserRole.ADMIN, UserRole.SALES_REP, UserRole.CUSTOMER_SUPPORT,
@@ -966,7 +964,7 @@ def log_record_access(
         service_name: Service name
         event_type: Must be EventType.RECORD_ACCESS. Example: "record_access"
         endpoint_path: API endpoint. Example: "/api/v1/customers"
-        data_sensitivity_level: Data sensitivity. Example: DataSensitivityLevel.PII_BASIC
+        data_sensitivity_level: Data sensitivity. Example: DataSensitivityLevel.CONFIDENTIAL
         id_list: List of record IDs accessed. Example: ["cust_123", "cust_456"]
         detail: Action type. Example: Detail.VIEW_LIST or Detail.VIEW_RECORD
         fields_accessed: Optional list of fields accessed (for single record)
@@ -984,7 +982,7 @@ def log_record_access(
         ...     service_name="customer-portal",
         ...     event_type=EventType.RECORD_ACCESS,
         ...     endpoint_path="/api/v1/customers",
-        ...     data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+        ...     data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
         ...     id_list=["cust_123", "cust_456", "cust_789"],
         ...     detail=Detail.VIEW_LIST,
         ...     actor_identifier="user@sunrun.com",

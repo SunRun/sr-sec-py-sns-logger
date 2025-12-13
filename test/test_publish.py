@@ -168,7 +168,7 @@ def test_all_security_events():
             endpoint_path="/api/v1/customers",
             http_method=HttpMethod.GET,
             authorization_status=Status.SUCCESS,
-            endpoint_sensitivity=EndpointSensitivity.PII_BASIC
+            endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL
         )
         test_results.append(("API Request", result))
         
@@ -187,7 +187,7 @@ def test_all_security_events():
             cloud_env_name="prod-us-west-2",
             service_account_id="sa-reports@company.iam.amazonaws.com",
             endpoint_path="/reports/customer-data",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
             id_list=["cust-001", "cust-002", "cust-003"]
         )
         test_results.append(("Record Access (Multiple)", result))
@@ -283,7 +283,7 @@ def test_all_security_events():
             cloud_env_name="prod-us-west-2",
             service_account_id="sa-customer@company.iam.amazonaws.com",
             endpoint_path="/api/customers/cust-12345",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
             id_list=["cust-12345"],
             fields_accessed=["email", "phone", "address"],
             detail=Detail.VIEW_RECORD

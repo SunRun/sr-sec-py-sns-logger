@@ -680,7 +680,7 @@ def create_security_context(
                 event_type=EventType.RECORD_ACCESS,
                 actor_type=ActorType.HUMAN_INTERNAL,  # Not auto-extracted
                 status=Status.SUCCESS,
-                data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+                data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
                 id_list=[id],
                 detail=Detail.VIEW_RECORD
             )

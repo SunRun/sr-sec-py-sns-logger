@@ -545,76 +545,107 @@ class DataSensitivityLevel:
     """
     Data sensitivity levels for classifying the sensitivity of accessed data.
     
+    Use these standardized levels to indicate the sensitivity of data being accessed.
+    Choose the level that best matches the MOST sensitive data in the operation.
+    
+    Quick Decision Guide:
+        Is this data publicly available (website, public API)?
+          → YES: PUBLIC
+          → NO: ↓
+        
+        Does this data belong to a specific customer or contain PII?
+          → YES: Is it highly sensitive (SSN, financial, credentials, health)?
+                 → YES: RESTRICTED
+                 → NO: CONFIDENTIAL
+          → NO: INTERNAL
+    
     Example:
         >>> from security_log_fields import DataSensitivityLevel
         >>> 
-        >>> # Accessing PII
-        >>> data_sensitivity_level = DataSensitivityLevel.PII_BASIC  # "sensitivity.level.pii_basic"
+        >>> # Product catalog data (anyone can see)
+        >>> data_sensitivity_level = DataSensitivityLevel.PUBLIC
+        >>> 
+        >>> # Internal dashboard metrics (employees only)
+        >>> data_sensitivity_level = DataSensitivityLevel.INTERNAL
+        >>> 
+        >>> # Customer agreement records (customer data)
+        >>> data_sensitivity_level = DataSensitivityLevel.CONFIDENTIAL
+        >>> 
+        >>> # SSN, bank accounts, API keys, passwords
+        >>> data_sensitivity_level = DataSensitivityLevel.RESTRICTED
     """
+    
     PUBLIC = "sensitivity.level.public"
-    """Public data. Example: "sensitivity.level.public" """
+    """
+    PUBLIC - Data that can be publicly shared.
+    
+    Use for data that is intentionally public or has no sensitivity concerns.
+    
+    Examples: Product catalogs, marketing content, public APIs, help docs
+    """
     
     INTERNAL = "sensitivity.level.internal"
-    """Internal data. Example: "sensitivity.level.internal" """
+    """
+    INTERNAL - Non-public internal business data, not customer-specific.
+    
+    Use for data that is internal to the organization but doesn't contain
+    customer information or sensitive business secrets.
+    
+    Examples: Internal reports, aggregated metrics, config settings, team directories
+    """
     
     CONFIDENTIAL = "sensitivity.level.confidential"
-    """Confidential data. Example: "sensitivity.level.confidential" """
+    """
+    CONFIDENTIAL - Customer/business data that shouldn't leak.
     
-    PII_BASIC = "sensitivity.level.pii_basic"
-    """Basic PII (name, email, phone). Example: "sensitivity.level.pii_basic" """
+    Use for data that belongs to specific customers or contains
+    business-sensitive information that could cause harm if exposed.
     
-    PII_FINANCIAL = "sensitivity.level.pii_financial"
-    """Financial PII (SSN, bank accounts). Example: "sensitivity.level.pii_financial" """
+    Examples: Customer records, agreements, contacts (name, email, phone), pricing
+    """
     
-    PII_HEALTH = "sensitivity.level.pii_health"
-    """Health information (HIPAA). Example: "sensitivity.level.pii_health" """
+    RESTRICTED = "sensitivity.level.restricted"
+    """
+    RESTRICTED - Highly sensitive data requiring maximum protection.
     
-    CREDENTIAL_MANAGEMENT = "sensitivity.level.credential_management"
-    """Credential management data. Example: "sensitivity.level.credential_management" """
+    Use for PII, credentials, financial data, or anything that could cause
+    significant harm to individuals or the business if exposed.
     
-    SYSTEM_ADMIN = "sensitivity.level.system_admin"
-    """System administration data. Example: "sensitivity.level.system_admin" """
-    
-    AUTHENTICATION = "sensitivity.level.authentication"
-    """Authentication data. Example: "sensitivity.level.authentication" """
+    Examples: SSN, bank accounts, passwords, API keys, health/HIPAA data
+    """
 
 
 class EndpointSensitivity:
     """
     Endpoint sensitivity levels for classifying API endpoint sensitivity.
     
+    Use these levels to indicate the sensitivity of the API endpoint being accessed.
+    This should reflect the MOST sensitive data the endpoint can return/modify.
+    
     Example:
         >>> from security_log_fields import EndpointSensitivity
         >>> 
-        >>> # PII endpoint
-        >>> endpoint_sensitivity = EndpointSensitivity.PII_BASIC  # "sensitivity.level.pii_basic"
+        >>> # Public API endpoint
+        >>> endpoint_sensitivity = EndpointSensitivity.PUBLIC
+        >>> 
+        >>> # Customer data endpoint  
+        >>> endpoint_sensitivity = EndpointSensitivity.CONFIDENTIAL
+        >>> 
+        >>> # Authentication/credential endpoint
+        >>> endpoint_sensitivity = EndpointSensitivity.RESTRICTED
     """
+    
     PUBLIC = "sensitivity.level.public"
-    """Public endpoint. Example: "sensitivity.level.public" """
+    """PUBLIC - Publicly accessible endpoint. Examples: Public APIs, marketing pages"""
     
     INTERNAL = "sensitivity.level.internal"
-    """Internal endpoint. Example: "sensitivity.level.internal" """
+    """INTERNAL - Internal-only endpoint, non-customer data. Examples: Admin dashboards, configs"""
     
     CONFIDENTIAL = "sensitivity.level.confidential"
-    """Confidential endpoint. Example: "sensitivity.level.confidential" """
+    """CONFIDENTIAL - Customer data or business-sensitive endpoint. Examples: Customer records"""
     
-    PII_BASIC = "sensitivity.level.pii_basic"
-    """Basic PII endpoint. Example: "sensitivity.level.pii_basic" """
-    
-    PII_FINANCIAL = "sensitivity.level.pii_financial"
-    """Financial PII endpoint. Example: "sensitivity.level.pii_financial" """
-    
-    PII_HEALTH = "sensitivity.level.pii_health"
-    """Health information endpoint. Example: "sensitivity.level.pii_health" """
-    
-    CREDENTIAL_MANAGEMENT = "sensitivity.level.credential_management"
-    """Credential management endpoint. Example: "sensitivity.level.credential_management" """
-    
-    SYSTEM_ADMIN = "sensitivity.level.system_admin"
-    """System administration endpoint. Example: "sensitivity.level.system_admin" """
-    
-    AUTHENTICATION = "sensitivity.level.authentication"
-    """Authentication endpoint. Example: "sensitivity.level.authentication" """
+    RESTRICTED = "sensitivity.level.restricted"
+    """RESTRICTED - Highly sensitive endpoint (PII, credentials). Examples: Auth, payments"""
 
 
 class UserRole:

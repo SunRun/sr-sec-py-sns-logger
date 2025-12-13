@@ -36,7 +36,7 @@ def test_json_structure_preservation():
         cloud_env_name="dev-us-west-2",
         service_account_id="sa-reports@company.iam.amazonaws.com",
         endpoint_path="/reports/customer-data",
-        data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+        data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
         id_list=["cust-001", "cust-002", "cust-003"],  # This should remain an array
         detail=Detail.EXPORT_REPORT
     )
@@ -93,7 +93,7 @@ def test_fields_accessed_array():
         cloud_env_name="dev-us-west-2",
         service_account_id="sa-customer@company.iam.amazonaws.com",
         endpoint_path="/api/customers/cust-12345",
-        data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+        data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
         id_list=["cust-12345"],
         fields_accessed=["email", "phone", "address"],  # This should remain an array
         detail=Detail.VIEW_RECORD
@@ -146,7 +146,7 @@ def test_malicious_array_sanitization():
         cloud_env_name="dev-us-west-2",
         service_account_id="sa-reports@company.iam.amazonaws.com",
         endpoint_path="/reports/customer-data",
-        data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+        data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
         id_list=malicious_ids,
         detail=Detail.EXPORT_REPORT
     )

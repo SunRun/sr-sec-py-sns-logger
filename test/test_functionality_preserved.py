@@ -80,7 +80,7 @@ def test_all_functionality_preserved():
             endpoint_path="/api/v1/customers",
             http_method=HttpMethod.GET,
             authorization_status=Status.SUCCESS,
-            endpoint_sensitivity=EndpointSensitivity.PII_BASIC
+            endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL
         )
         test_results.append(("API Request", result))
         
@@ -98,7 +98,7 @@ def test_all_functionality_preserved():
             cloud_env_name="dev-us-west-2",
             service_account_id="sa-reports@company.iam.amazonaws.com",
             endpoint_path="/reports/customer-data",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
             id_list=["test-001", "test-002", "test-003"]
         )
         test_results.append(("Record Access", result))

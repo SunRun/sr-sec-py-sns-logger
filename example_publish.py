@@ -236,7 +236,7 @@ def example_api_access_events():
             endpoint_path="/api/v1/customers",
             http_method=HttpMethod.GET,
             authorization_status=Status.SUCCESS,
-            endpoint_sensitivity=EndpointSensitivity.PII_BASIC,
+            endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL,
             source_ip_address="203.0.113.54",
             detail="Successful customer data retrieval"
         )
@@ -260,7 +260,7 @@ def example_data_access_events():
             cloud_env_name="production",
             service_account_id="lambda-execution-role",
             endpoint_path="/api/v1/customers/bulk-export",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
             id_list=["cust-001", "cust-002", "cust-003", "cust-004"],
             detail=Detail.EXPORT_REPORT,
             source_ip_address="192.168.2.100"
@@ -281,7 +281,7 @@ def example_data_access_events():
             cloud_env_name="production",
             service_account_id="lambda-execution-role",
             endpoint_path="/api/v1/customers/customer-12345",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
             id_list=["customer-12345"],  # Single record - just one ID in the list
             fields_accessed=["name", "email", "phone", "address"],
             detail=Detail.VIEW_RECORD,
