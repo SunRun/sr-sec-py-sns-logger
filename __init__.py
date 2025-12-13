@@ -26,8 +26,7 @@ from .security_logging_sns import (
     log_api_request,
     
     # Customer Data Actions functions
-    log_multi_record_access,
-    log_single_record_access,
+    log_record_access,
     
     # Key Configuration Changes functions
     log_mfa_status_change,
@@ -83,7 +82,33 @@ from .security_log_fields import (
     VALID_EVENT_TYPES,
 )
 
-__version__ = "1.0.0"
+from .context_helpers import (
+    # Main context creation functions
+    create_security_context,
+    create_server_context,
+    create_lambda_context,
+    
+    # Individual extraction functions
+    extract_user_agent,
+    extract_source_ip,
+    extract_endpoint_path,
+    extract_http_method,
+    extract_actor_identifier,
+    extract_session_id,
+    extract_cloud_env_type,
+    extract_cloud_env_name,
+    extract_cloud_env_unique_id,
+    extract_service_name,
+    extract_service_account_id,
+    
+    # Diagnostic helpers (informational, no exceptions)
+    get_missing_context_fields,
+    warn_missing_context_fields,
+    diagnose_security_context,
+    REQUIRED_CONTEXT_FIELDS,
+)
+
+__version__ = "2.0.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 

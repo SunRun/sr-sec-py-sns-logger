@@ -24,8 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from security_logging_sns import (
     init_security_logging, log_user_login, log_mfa_challenge, log_user_logout,
     log_permission_role_change, log_user_status_change, log_impersonation_event,
-    log_user_invite_event, log_api_request, log_multi_record_access,
-    log_single_record_access, log_mfa_status_change, log_password_change_reset,
+    log_user_invite_event, log_api_request, log_record_access,
+    log_mfa_status_change, log_password_change_reset,
     log_api_key_lifecycle, log_auth_mechanism_modification
 )
 from security_log_fields import (
@@ -168,14 +168,14 @@ def test_all_security_events():
             endpoint_path="/api/v1/customers",
             http_method=HttpMethod.GET,
             authorization_status=Status.SUCCESS,
-            endpoint_sensitivity=EndpointSensitivity.PII_BASIC
+            endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL
         )
         test_results.append(("API Request", result))
         
-        # 7. Multi-Record Access
-        print("7️⃣ Testing Multi-Record Access...")
-        result = log_multi_record_access(
-            event_type=EventType.MULTI_RECORD_ACCESS,
+        # 7. Record Access (Multiple Records)
+        print("7️⃣ Testing Record Access (Multiple Records)...")
+        result = log_record_access(
+            event_type=EventType.RECORD_ACCESS,
             actor_identifier="analyst@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id=f"session-multi-{timestamp_suffix}",
@@ -187,11 +187,10 @@ def test_all_security_events():
             cloud_env_name="prod-us-west-2",
             service_account_id="sa-reports@company.iam.amazonaws.com",
             endpoint_path="/reports/customer-data",
-            data_sensitivity_level=DataSensitivityLevel.PII_BASIC,
-            record_count=1250,
-            customer_id_list=["cust-001", "cust-002", "cust-003"]
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+            id_list=["cust-001", "cust-002", "cust-003"]
         )
-        test_results.append(("Multi-Record Access", result))
+        test_results.append(("Record Access (Multiple)", result))
         
         # 8. MFA Status Change
         print("8️⃣ Testing MFA Status Change...")
@@ -270,10 +269,10 @@ def test_all_security_events():
         )
         test_results.append(("User Invite Event", result))
         
-        # 12. Single Record Access
-        print("1️⃣2️⃣ Testing Single Record Access...")
-        result = log_single_record_access(
-            event_type=EventType.SINGLE_RECORD_ACCESS,
+        # 12. Record Access (Single Record)
+        print("1️⃣2️⃣ Testing Record Access (Single Record)...")
+        result = log_record_access(
+            event_type=EventType.RECORD_ACCESS,
             actor_identifier="support@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id=f"session-single-{timestamp_suffix}",
@@ -283,11 +282,13 @@ def test_all_security_events():
             cloud_env_unique_id="000576341507",
             cloud_env_name="prod-us-west-2",
             service_account_id="sa-customer@company.iam.amazonaws.com",
-            customer_id="cust-12345",
+            endpoint_path="/api/customers/cust-12345",
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+            id_list=["cust-12345"],
             fields_accessed=["email", "phone", "address"],
             detail=Detail.VIEW_RECORD
         )
-        test_results.append(("Single Record Access", result))
+        test_results.append(("Record Access (Single)", result))
         
         # 13. Password Change Reset
         print("1️⃣3️⃣ Testing Password Change Reset...")

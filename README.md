@@ -8,9 +8,11 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - ✅ **Compliance**: Covers all High priority security events with required data points
 - 🧪 **Test Mode**: Test without AWS credentials for development and validation
 - 📦 **Simple API**: One-line initialization, clean function calls
-- 🛡️ **Crash-Safe**: All parameters optional with validation - never crashes your app
+- 🛡️ **Validation**: Comprehensive validation with detailed error messages showing all missing fields
 - 📋 **Schema Compliant**: Implements standardized flat JSON structure with all required security fields
 - ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
+- 📊 **Auto-Batching**: Automatically handles large record lists that exceed SNS message limits
+- 🔍 **Context Extraction**: Automatically captures function/file name for enhanced debugging
 
 ---
 
@@ -39,6 +41,12 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 12. [Authorization & Access Events](#authorization--access-events)
 13. [API & Data Access Events](#api--data-access-events)
 14. [Key Configuration & Security Changes](#key-configuration--security-changes)
+
+### Part 3.5: Auto-Context Extraction Helpers
+15. [Available Context Helpers](#available-context-helpers)
+16. [Auto-Extracted Fields](#auto-extracted-fields)
+17. [Fields Requiring Manual Input](#fields-requiring-manual-input)
+18. [Runtime Failure for Missing Fields](#runtime-failure-for-missing-fields)
 
 ### Part 4: Production Readiness
 15. [GitHub Actions CI/CD Setup](#github-actions-cicd-setup)
@@ -122,9 +130,17 @@ print('✅ Security logging initialized.')
 
 **Production Configuration:**
 ```python
-# In production, simply call without parameters
-SecurityLogging.init_security_logging()
+# In production with environment config (recommended)
+SecurityLogging.init_security_logging(
+    cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+    cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
+    cloud_env_name='production',
+    service_account_id=os.environ.get('AWS_EXECUTION_ROLE_ARN'),
+    service_name='my-application',
+)
 ```
+
+**Benefit**: Once these fields are set during initialization, you don't need to pass them with every log call - they're automatically included!
 
 **Multi-Region Failover Configuration (Optional but Recommended):**
 
@@ -423,6 +439,32 @@ Implementing this framework requires more than just copying code. As an engineer
 - Creating custom detail values instead of using standardized `Detail` constants
 - Not importing the constants properly from `security_log_fields.py`
 
+#### Data Sensitivity Levels
+
+When logging record access events, you must specify the sensitivity level of the data being accessed. Use this guide to select the appropriate level:
+
+| Level | Constant | When to Use | Examples |
+|-------|----------|-------------|----------|
+| **PUBLIC** | `DataSensitivityLevel.PUBLIC` | Data that can be publicly shared | Product catalogs, marketing content, public APIs, help docs |
+| **NON_PUBLIC** | `DataSensitivityLevel.NON_PUBLIC` | Internal business data, not customer-specific | Internal reports, aggregated metrics, config settings, team directories |
+| **CONFIDENTIAL** | `DataSensitivityLevel.CONFIDENTIAL` | Customer/business data that shouldn't leak | Customer records, agreements, contracts, contact info, pricing |
+| **RESTRICTED** | `DataSensitivityLevel.RESTRICTED` | Highly sensitive - PII, credentials, financial | SSN, bank accounts, passwords, API keys, health data |
+
+**Decision Guide:**
+```
+Is this data publicly available (website, public API)?
+  → YES: PUBLIC
+  → NO: ↓
+
+Does this data belong to a specific customer or contain PII?
+  → YES: Is it highly sensitive (SSN, financial, credentials, health)?
+         → YES: RESTRICTED
+         → NO: CONFIDENTIAL
+  → NO: NON_PUBLIC
+```
+
+The same levels apply to `EndpointSensitivity` for API endpoint classification.
+
 ### Request SNS Permissions
 
 Before you can use this security logging module in production, you need to request permissions to publish to the security logging SNS topic.
@@ -690,9 +732,9 @@ Before implementing security logging, create a comprehensive list of all securit
 
 **API & Data Access:**
 - API endpoint access (especially sensitive endpoints)
-- Customer data viewing/modification
+- Customer/entity data viewing/modification
 - Bulk data exports or reports
-- Single customer record access
+- Record access (single or multiple records)
 
 **Configuration Changes:**
 - MFA device management
@@ -721,10 +763,9 @@ For each activity you identified, determine which security logging function to u
 📖 **Review the [API Endpoint Access functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876)**
 - ➡️ Use: [`log_api_request()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L876) - API endpoint access (success/failure)
 
-#### **Is the activity about viewing or modifying customer data?**
+#### **Is the activity about viewing or modifying customer/entity data?**
 📖 **Review the [Customer Data Actions functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984)**
-- ➡️ Use: [`log_multi_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984) - Viewing/exporting multiple customer records
-- ➡️ Use: [`log_single_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1084) - Viewing/modifying single customer record
+- ➡️ Use: [`log_record_access()`](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L984) - Viewing/modifying records (single or multiple - pass 1 or more IDs in `id_list`)
 
 #### **Is the activity about security configuration changes?**
 📖 **Review the [Key Configuration Changes functions →](https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_logging_sns.py#L1182)**
@@ -757,10 +798,10 @@ Create a checklist to track your implementation progress:
 ## 📋 Part 3: API Function Reference
 
 ### Available Functions
-The library provides 14 security logging functions covering:
+The library provides 13 security logging functions covering:
 - **Authentication & Session**: `log_user_login()`, `log_mfa_challenge()`, `log_user_logout()`
 - **Authorization & Access**: `log_permission_role_change()`, `log_user_status_change()`, `log_impersonation_event()`, `log_user_invite_event()`
-- **API & Data Access**: `log_api_request()`, `log_multi_record_access()`, `log_single_record_access()`
+- **API & Data Access**: `log_api_request()`, `log_record_access()` (unified function for single or multiple records)
 - **Key Management**: `log_mfa_status_change()`, `log_password_change_reset()`, `log_api_key_lifecycle()`, `log_auth_mechanism_modification()`
 
 ### Function Signature Pattern
@@ -906,6 +947,172 @@ with ThreadPoolExecutor() as executor:
 ```
 
 > **📝 Note**: For complete examples of all 14 available functions, see [`example_publish.py`](example_publish.py).
+
+---
+
+## 📋 Part 3.5: Auto-Context Extraction Helpers
+
+The package includes helper functions that automatically extract common security context fields from your application request context, reducing boilerplate and ensuring consistency.
+
+### Available Context Helpers
+
+```python
+from sr_sec_py_sns_logger import (
+    create_security_context,       # Main helper: extracts all available fields
+    get_missing_context_fields,    # Check which fields couldn't be auto-extracted
+    diagnose_security_context,     # Get detailed info on missing fields + how to fix
+    warn_missing_context_fields,   # Log warnings for missing fields (dev helper)
+)
+```
+
+### Auto-Extracted Fields
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `actor_identifier` | `session['user']['email']` | From auth session dict |
+| `user_agent` | `request_headers['user-agent']` | Browser/client user agent |
+| `source_ip_address` | `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` | Client IP from proxy headers |
+| `endpoint_path` | `request_path` parameter | Request path |
+| `http_method` | `request_method` parameter | GET, POST, etc. |
+| `session_id` | Prioritized: `session['id']` → `session_token` → `jti` → `email+expires` hash | Stable throughout user session |
+| `cloud_env_type` | `CLOUD_ENV_TYPE`, `NEXT_PUBLIC_ENVIRONMENT_NAME`, `NODE_ENV` | Auto-mapped to standardized values |
+| `cloud_env_name` | `CLOUD_ENV_NAME`, `NEXT_PUBLIC_ENVIRONMENT_NAME` | Human-readable environment name |
+| `cloud_env_unique_id` | `AWS_ACCOUNT_ID`, ARN parsing | AWS Account ID |
+| `service_name` | `SERVICE_NAME` env var | Application/service name |
+| `service_account_id` | `SERVICE_ACCOUNT_ID`, `AWS_EXECUTION_ROLE_ARN` | IAM role/user ARN |
+
+**Note:** If you set `cloud_env_type`, `cloud_env_unique_id`, `cloud_env_name`, `service_account_id`, or `service_name` during `init_security_logging()`, those values take precedence and are automatically included in all logs.
+
+### Fields Requiring Manual Input
+
+These fields **must** be set manually and cannot be auto-extracted:
+
+| Field | Why Manual? |
+|-------|-------------|
+| `actor_type` | Business logic decision (HUMAN_INTERNAL, SYSTEM, etc.) |
+| `user_role` | Application-specific role from your database/auth system |
+| `event_type` | Specific to the action being performed |
+| `status` | Outcome of the operation |
+| Other event-specific fields | Depends on the event type |
+
+### Usage Example
+
+#### Basic Usage
+
+```python
+import os
+from sr_sec_py_sns_logger import (
+    create_security_context,
+    warn_missing_context_fields,
+    log_record_access,
+    fire_and_forget,
+    EventType,
+    Status,
+    ActorType,
+    UserRole,
+    Category,
+)
+from concurrent.futures import ThreadPoolExecutor
+
+def handle_request(request_headers, session, request_path, request_method):
+    # Auto-extract what we can from request/session/environment
+    context = create_security_context(
+        request_headers=request_headers,
+        session=session,
+        request_path=request_path,
+        request_method=request_method,
+    )
+    
+    # Optional: warn in development if fields couldn't be extracted
+    if os.environ.get('ENV_TYPE') == 'development':
+        warn_missing_context_fields(context)
+    
+    # Use the context - logging function will return error if required fields missing
+    with ThreadPoolExecutor() as executor:
+        future = executor.submit(
+            log_record_access,
+            **context,                     # All auto-extracted fields
+            event_type=EventType.RECORD_ACCESS,
+            actor_type=ActorType.HUMAN_INTERNAL,  # Manual: business logic
+            user_role=UserRole.ADMIN,              # Manual: from your auth system
+            status=Status.SUCCESS,
+            category=Category.CUSTOMER_DATA_ACTIONS,
+            id_list=['customer-123'],
+        )
+        
+        # fire_and_forget handles the result - if missing fields, it will log error
+        fire_and_forget(future, 'record_access')
+    
+    return {"success": True}
+
+# Example session dict (from your auth system)
+session = {
+    'user': {'email': 'user@example.com'},
+    'expires': '2024-01-01T00:00:00Z'
+}
+
+# Example request headers
+request_headers = {
+    'user-agent': 'Mozilla/5.0...',
+    'x-forwarded-for': '1.2.3.4'
+}
+```
+
+### Required Environment Variables
+
+For full auto-extraction to work, configure these environment variables:
+
+```bash
+# Required for cloud_env_type and cloud_env_name
+NEXT_PUBLIC_ENVIRONMENT_NAME=production  # or staging, development, etc.
+# OR
+CLOUD_ENV_TYPE=prod
+CLOUD_ENV_NAME=Production
+
+# Required for service_name
+SERVICE_NAME=my-python-service
+
+# Required for cloud_env_unique_id
+AWS_ACCOUNT_ID=123456789012
+
+# Required for service_account_id
+SERVICE_ACCOUNT_ID=arn:aws:iam::123456789012:role/my-role
+# OR
+AWS_EXECUTION_ROLE_ARN=arn:aws:iam::123456789012:role/my-role
+```
+
+### Handling Missing Fields
+
+Auto-extraction is **best-effort** - if environment variables aren't set, the fields will be `None`. The logging functions handle this gracefully by returning a failure response (not raising):
+
+```python
+result = log_record_access(**context, event_type=EventType.RECORD_ACCESS, ...)
+
+if result['status'] == 'failure':
+    # result['message'] will say "Missing required fields: cloud_env_type, service_name"
+    print(result['message'])
+```
+
+### Diagnosing Missing Fields in Development
+
+Use `diagnose_security_context()` to get detailed information about what's missing and how to fix it:
+
+```python
+from sr_sec_py_sns_logger import create_security_context, diagnose_security_context
+
+context = create_security_context(request_headers, session)
+diagnostics = diagnose_security_context(context)
+
+if diagnostics['has_missing']:
+    print('Missing fields - set these environment variables:')
+    for suggestion in diagnostics['suggestions']:
+        print(f"  {suggestion['field']}: {suggestion['env_var']} ({suggestion['description']})")
+
+# Example output:
+# Missing fields - set these environment variables:
+#   cloud_env_type: CLOUD_ENV_TYPE or NEXT_PUBLIC_ENVIRONMENT_NAME (Environment type)
+#   service_name: SERVICE_NAME (Application/service name)
+```
 
 ---
 
@@ -1338,8 +1545,7 @@ Additional required fields based on the specific event type. The `detail` field 
 ##### Customer Data Actions Events
 | Event Type | Required Fields |
 |------------|----------------|
-| **Multi-Record Actions** (`multi_record_access`) | `endpoint_path`, `data_sensitivity_level`, `record_count`, `customer_id_list` |
-| **Single-Record Actions** (`single_record_access`) | `customer_id`, `fields_accessed` |
+| **Record Access** (`record_access`) | `endpoint_path`, `data_sensitivity_level`, `id_list` (record_count is auto-calculated) |
 
 ##### Key Configuration Changes Events
 | Event Type | Required Fields |

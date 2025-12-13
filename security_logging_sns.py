@@ -1,7 +1,51 @@
 # File: security_logging_sns.py
+"""
+Security Logging SNS Module
+
+Main security logging module with all logging functions. Provides a standardized
+way to log security events to AWS SNS for compliance and monitoring.
+
+Features:
+    - Hot start optimization (SNS client reused across invocations)
+    - Automatic failover between primary and failover regions
+    - Message batching for large payloads (SNS 256KB limit)
+    - UUID generation for event correlation
+    - Automatic caller context extraction (function name, file name)
+    - Comprehensive validation with all errors reported at once
+
+Example:
+    >>> from security_logging_sns import init_security_logging, log_user_login
+    >>> from security_log_fields import EventType, Status, ActorType, AuthProtocol, CloudEnvType
+    >>> 
+    >>> # Initialize once (typically at module level for Lambda)
+    >>> init_security_logging()
+    >>> 
+    >>> # Log a successful login
+    >>> result = log_user_login(
+    ...     # Required base fields
+    ...     cloud_env_type=CloudEnvType.PROD,
+    ...     cloud_env_unique_id="123456789012",
+    ...     cloud_env_name="production",
+    ...     service_account_id="arn:aws:iam::123456789012:role/AuthService",
+    ...     service_name="auth-service",
+    ...     
+    ...     # Required event fields
+    ...     event_type=EventType.LOGIN_ATTEMPT,
+    ...     status=Status.SUCCESS,
+    ...     user_agent="Mozilla/5.0...",
+    ...     user_role="role.classification.admin",
+    ...     auth_protocol=AuthProtocol.OAUTH2_JWT,
+    ...     
+    ...     # Common fields
+    ...     actor_identifier="user@company.com",
+    ...     actor_type=ActorType.HUMAN_INTERNAL,
+    ...     session_id="sess_abc123"
+    ... )
+"""
 
 import os
 import sys
+import inspect
 import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Union, Callable
@@ -13,11 +57,33 @@ from security_log_fields import (
 )
 from sns_publisher import SNSPublisher
 
-# Global SNS publisher instance - initialized once per application
+# Global SNS publisher instance - initialized once per application (HOT START)
 _sns_publisher: Optional[SNSPublisher] = None
 
 # Global error handler for fire-and-forget logging
 _error_handler = None
+
+# Global environment configuration set during initialization
+# These values are automatically included in all log events
+_env_config: Dict[str, str] = {}
+
+
+def get_environment_config() -> Dict[str, str]:
+    """
+    Get the current environment configuration.
+    Used internally to merge with log events.
+    """
+    return _env_config.copy()
+
+# Common required fields for ALL security log events
+COMMON_REQUIRED_FIELDS = [
+    'cloud_env_type',      # Environment: "prod", "stage", "test", "dev"
+    'cloud_env_unique_id', # Unique identifier (e.g., AWS account ID)
+    'cloud_env_name',      # Human-readable name (e.g., "production-us-west-2")
+    'service_account_id',  # Service account/IAM role identifier
+    'service_name'         # Name of the service generating the log
+]
+
 
 def init_security_logging(
     topic_arn: str = None, 
@@ -28,42 +94,79 @@ def init_security_logging(
     test_mode: bool = False,
     aws_access_key_id: str = None,
     aws_secret_access_key: str = None,
-    aws_session_token: str = None
+    aws_session_token: str = None,
+    # Environment fields (set once, used in all logs)
+    cloud_env_type: str = None,
+    cloud_env_unique_id: str = None,
+    cloud_env_name: str = None,
+    service_account_id: str = None,
+    service_name: str = None
 ):
     """
     Initialize the security logging module with optional multi-region failover.
     
+    **HOT START**: This function creates a singleton SNSPublisher that is reused
+    across all logging calls. For Lambda functions, call this outside the handler
+    to benefit from container reuse.
+    
     Args:
         topic_arn: Primary SNS Topic ARN. If None, uses default or SECURITY_LOGS_TOPIC_ARN env var
         region_name: Primary AWS region. If None, uses us-west-2
-        failover_topic_arn: Failover SNS Topic ARN (optional). If None, reads from SECURITY_LOGS_FAILOVER_TOPIC_ARN env var
+        failover_topic_arn: Failover SNS Topic ARN (optional)
         failover_region: Failover AWS region. If None, uses us-east-2
-        enable_failover: Enable automatic failover (default: True). Set to False to disable failover
+        enable_failover: Enable automatic failover (default: True)
         test_mode: If True, logs are printed to console instead of sent to SNS
         aws_access_key_id: Optional AWS access key ID for IAM User authentication
         aws_secret_access_key: Optional AWS secret access key for IAM User authentication  
         aws_session_token: Optional AWS session token for temporary credentials
+        cloud_env_type: Cloud environment type (e.g., CloudEnvType.PROD). Set once, included in all logs.
+        cloud_env_unique_id: Unique environment ID (e.g., AWS Account ID). Set once, included in all logs.
+        cloud_env_name: Human-readable environment name (e.g., "production"). Set once, included in all logs.
+        service_account_id: Service account ID (e.g., IAM role ARN). Set once, included in all logs.
+        service_name: Service/application name (e.g., "cypress-ui"). Set once, included in all logs.
     
     Example:
-        # Basic initialization (no failover)
-        init_security_logging(
-            topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic"
-        )
+        >>> # Basic initialization with environment config
+        >>> init_security_logging(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::123456789012:role/my-role",
+        ...     service_name="my-service"
+        ... )
         
-        # With failover enabled
-        init_security_logging(
-            topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic",
-            failover_topic_arn="arn:aws:sns:us-east-2:123456789012:my-failover-topic",
-            enable_failover=True
-        )
+        >>> # With explicit SNS configuration
+        >>> init_security_logging(
+        ...     topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic",
+        ...     failover_topic_arn="arn:aws:sns:us-east-2:123456789012:my-failover-topic",
+        ...     enable_failover=True,
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     service_name="my-service"
+        ... )
         
-        # With IAM User credentials (for applications not using IAM Roles)
-        init_security_logging(
-            aws_access_key_id=os.environ.get('MY_AWS_ACCESS_KEY_ID'),
-            aws_secret_access_key=os.environ.get('MY_AWS_SECRET_ACCESS_KEY')
-        )
+        >>> # Lambda best practice - initialize outside handler
+        >>> # At module level:
+        >>> init_security_logging(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     service_name="my-lambda"
+        ... )
+        >>> 
+        >>> def handler(event, context):
+        ...     # Use logging functions (reuses existing SNS client + env config)
+        ...     log_user_login(...)  # No need to pass cloud_env_type, service_name, etc.
     """
-    global _sns_publisher
+    global _sns_publisher, _env_config
+    
+    # Store environment configuration (automatically included in all logs)
+    _env_config = {
+        'cloud_env_type': cloud_env_type,
+        'cloud_env_unique_id': cloud_env_unique_id,
+        'cloud_env_name': cloud_env_name,
+        'service_account_id': service_account_id,
+        'service_name': service_name
+    }
+    # Remove None values
+    _env_config = {k: v for k, v in _env_config.items() if v is not None}
     
     # Default production ARNs and regions
     DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
@@ -73,7 +176,6 @@ def init_security_logging(
     
     # Primary topic configuration
     if topic_arn is None:
-        # First try environment variable, then use default
         topic_arn = os.environ.get("SECURITY_LOGS_TOPIC_ARN")
         if not topic_arn:
             if test_mode:
@@ -82,14 +184,12 @@ def init_security_logging(
                 topic_arn = DEFAULT_TOPIC_ARN
     
     if region_name is None:
-        # First try environment variable, then use default
         region_name = os.environ.get("AWS_REGION")
         if not region_name:
             region_name = DEFAULT_REGION
     
     # Failover topic configuration
     if failover_topic_arn is None and enable_failover:
-        # Try environment variable for failover topic, then use default
         failover_topic_arn = os.environ.get("SECURITY_LOGS_FAILOVER_TOPIC_ARN")
         if not failover_topic_arn and not test_mode:
             failover_topic_arn = DEFAULT_FAILOVER_TOPIC_ARN
@@ -109,11 +209,13 @@ def init_security_logging(
         aws_session_token=aws_session_token
     )
 
+
 def _get_publisher() -> SNSPublisher:
     """Get the global SNS publisher instance."""
     if _sns_publisher is None:
         raise RuntimeError("Security logging not initialized. Call init_security_logging() first.")
     return _sns_publisher
+
 
 def get_failover_metrics() -> Dict[str, int]:
     """
@@ -129,16 +231,18 @@ def get_failover_metrics() -> Dict[str, int]:
         - total_failures: Total failures across both regions
     
     Example:
-        metrics = get_failover_metrics()
-        print(f"Failover used: {metrics['failover_success']} times")
+        >>> metrics = get_failover_metrics()
+        >>> print(f"Failover used: {metrics['failover_success']} times")
     """
     publisher = _get_publisher()
     return publisher.get_metrics()
+
 
 def reset_failover_metrics():
     """Reset failover metrics counters. Useful for testing or periodic resets."""
     publisher = _get_publisher()
     publisher.reset_metrics()
+
 
 # ==================================
 # == Fire-and-Forget Functionality
@@ -153,14 +257,16 @@ def set_security_logging_error_handler(handler: Callable[[str, Optional[str]], N
         handler: Function that takes (error_message, event_type) and handles the error
     
     Example:
-        def my_error_handler(error_msg, event_type):
-            print(f"Security logging failed for {event_type}: {error_msg}")
-            cloudwatch.put_metric('SecurityLoggingFailure', 1, {'EventType': event_type})
-        
-        set_security_logging_error_handler(my_error_handler)
+        >>> def my_error_handler(error_msg, event_type):
+        ...     print(f"Security logging failed for {event_type}: {error_msg}")
+        ...     # Emit CloudWatch metric
+        ...     cloudwatch.put_metric('SecurityLoggingFailure', 1, {'EventType': event_type})
+        >>> 
+        >>> set_security_logging_error_handler(my_error_handler)
     """
     global _error_handler
     _error_handler = handler
+
 
 def fire_and_forget(log_future: Future[Dict[str, str]], event_type: Optional[str] = None) -> None:
     """
@@ -172,20 +278,17 @@ def fire_and_forget(log_future: Future[Dict[str, str]], event_type: Optional[str
         event_type: Optional event type for error reporting context
     
     Example:
-        # Instead of awaiting (which blocks):
-        # result = log_user_login(...)
-        
-        # Use fire-and-forget (non-blocking):
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(log_user_login, 
-                event_type=EventType.LOGIN_ATTEMPT,
-                status=Status.SUCCESS,
-                actor_identifier="user@company.com",
-                # ... other parameters
-            )
-            fire_and_forget(future, EventType.LOGIN_ATTEMPT)
-        
-        # Application continues immediately - not blocked by SNS!
+        >>> from concurrent.futures import ThreadPoolExecutor
+        >>> 
+        >>> with ThreadPoolExecutor() as executor:
+        ...     future = executor.submit(log_user_login, 
+        ...         event_type=EventType.LOGIN_ATTEMPT,
+        ...         status=Status.SUCCESS,
+        ...         # ... other parameters
+        ...     )
+        ...     fire_and_forget(future, EventType.LOGIN_ATTEMPT)
+        >>> 
+        >>> # Application continues immediately - not blocked by SNS!
     """
     def handle_result(future: Future) -> None:
         try:
@@ -204,6 +307,34 @@ def fire_and_forget(log_future: Future[Dict[str, str]], event_type: Optional[str
                 print(error_msg, file=sys.stderr)
     
     log_future.add_done_callback(handle_result)
+
+
+# ==================================
+# == Caller Context Extraction
+# ==================================
+
+def _get_caller_context() -> Dict[str, str]:
+    """
+    Extract caller information (function name, file name) from stack trace.
+    This provides automatic context about where the log was generated.
+    
+    Returns:
+        Dict with caller_function and caller_file keys
+    """
+    try:
+        # Walk up the stack to find the first frame outside this module
+        for frame_info in inspect.stack():
+            if 'security_logging_sns' not in frame_info.filename:
+                filename = os.path.basename(frame_info.filename)
+                function_name = frame_info.function
+                return {
+                    'caller_function': function_name,
+                    'caller_file': filename
+                }
+    except Exception:
+        pass
+    return {}
+
 
 # ==================================
 # == Standardized Values Validation
@@ -236,9 +367,12 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             HttpMethod.DELETE, HttpMethod.HEAD, HttpMethod.OPTIONS
         ],
         "endpoint_sensitivity": [
-            EndpointSensitivity.PUBLIC, EndpointSensitivity.INTERNAL, EndpointSensitivity.CONFIDENTIAL,
-            EndpointSensitivity.PII_BASIC, EndpointSensitivity.PII_FINANCIAL, EndpointSensitivity.PII_HEALTH,
-            EndpointSensitivity.CREDENTIAL_MANAGEMENT, EndpointSensitivity.SYSTEM_ADMIN, EndpointSensitivity.AUTHENTICATION
+            EndpointSensitivity.PUBLIC, EndpointSensitivity.NON_PUBLIC, 
+            EndpointSensitivity.CONFIDENTIAL, EndpointSensitivity.RESTRICTED
+        ],
+        "data_sensitivity_level": [
+            DataSensitivityLevel.PUBLIC, DataSensitivityLevel.NON_PUBLIC, 
+            DataSensitivityLevel.CONFIDENTIAL, DataSensitivityLevel.RESTRICTED
         ],
         "user_role": [
             UserRole.ADMIN, UserRole.SALES_REP, UserRole.CUSTOMER_SUPPORT,
@@ -271,9 +405,9 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             Detail.IMPERSONATION_START, Detail.IMPERSONATION_STOP,
             # Customer Data Actions
             Detail.VIEW_LIST, Detail.MODIFY_CUSTOMER_DATA, Detail.EXPORT_REPORT, Detail.VIEW_RECORD, Detail.EDIT_RECORD,
-            # MFA Actions (for mfa_status_change events)
+            # MFA Actions
             Detail.MFA_DISABLED, Detail.MFA_ENABLED, Detail.NEW_MFA_DEVICE,
-            # MFA Challenge failure reasons (for mfa_challenge events)
+            # MFA Challenge failure reasons
             Detail.MFA_INVALID_CODE, Detail.MFA_EXPIRED_CODE, Detail.MFA_DEVICE_NOT_ENROLLED, Detail.MFA_TOO_MANY_ATTEMPTS,
             # Password Actions
             Detail.PASSWORD_CHANGE, Detail.PASSWORD_RESET,
@@ -282,6 +416,7 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
         ]
     }
     return valid_values.get(field_name, [])
+
 
 def _validate_standardized_field(field_name: str, field_value: str, allow_custom_for_detail: bool = False) -> Dict[str, Any]:
     """
@@ -295,7 +430,7 @@ def _validate_standardized_field(field_name: str, field_value: str, allow_custom
     Returns:
         Dict with "valid" boolean and "message" if invalid
     """
-    if not field_value or field_value.strip() == "":
+    if not field_value or (isinstance(field_value, str) and field_value.strip() == ""):
         return {"valid": True}  # Empty values are handled by required field validation
     
     valid_values = _get_valid_values_for_field(field_name)
@@ -304,7 +439,6 @@ def _validate_standardized_field(field_name: str, field_value: str, allow_custom
     
     # Special handling for detail field - allow custom text for success contexts
     if field_name == "detail" and allow_custom_for_detail:
-        # If it's not a standardized detail value, assume it's custom success context
         if field_value not in valid_values:
             return {"valid": True}
     
@@ -315,6 +449,53 @@ def _validate_standardized_field(field_name: str, field_value: str, allow_custom
         }
     
     return {"valid": True}
+
+
+def _validate_and_collect_errors(
+    params: Dict[str, Any],
+    required_fields: List[str],
+    standardized_fields: List[Dict[str, Any]]
+) -> List[str]:
+    """
+    Validate all required fields at once and return all errors.
+    This allows developers to see all missing/invalid fields in a single error message.
+    
+    Args:
+        params: Dictionary of parameters to validate
+        required_fields: List of required field names
+        standardized_fields: List of dicts with 'field' and optional 'allow_custom' keys
+        
+    Returns:
+        List of error messages (empty if valid)
+    """
+    errors = []
+    
+    # Check required fields
+    missing_fields = []
+    for field in required_fields:
+        value = params.get(field)
+        if value is None:
+            missing_fields.append(field)
+        elif isinstance(value, str) and value.strip() == "":
+            missing_fields.append(field)
+        elif isinstance(value, list) and len(value) == 0:
+            missing_fields.append(field)
+    
+    if missing_fields:
+        errors.append(f"Required fields missing: {', '.join(missing_fields)}")
+    
+    # Validate standardized values
+    for field_config in standardized_fields:
+        field = field_config['field']
+        allow_custom = field_config.get('allow_custom', False)
+        value = params.get(field)
+        if value and isinstance(value, str) and value.strip() != "":
+            validation = _validate_standardized_field(field, value, allow_custom)
+            if not validation["valid"]:
+                errors.append(validation["message"])
+    
+    return errors
+
 
 # ==================================
 # == Helper Functions
@@ -339,22 +520,32 @@ def _create_base_log_event(
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = "",
-    **kwargs  # Additional event-specific fields
+    **kwargs
 ) -> Dict[str, Any]:
     """
     Create a base log event with all required and optional fields.
+    Automatically adds caller context (function name, file name).
+    
+    Environment fields (cloud_env_type, cloud_env_unique_id, etc.) will use
+    values from init_security_logging() if not provided here.
     
     Returns:
-        Dict containing the complete log event or error status
+        Dict containing the complete log event
     """
-    
     # Use current timestamp if not provided
     if not timestamp:
         timestamp = datetime.now(timezone.utc).isoformat()
     
+    # Get caller context
+    caller_context = _get_caller_context()
+    
+    # Get environment config set during initialization
+    # These values are used as defaults if not provided as arguments
+    env_config = _env_config
+    
     # Create the base event structure
+    # Arguments take precedence over init-time config
     event = {
-        # Base log fields
         "timestamp": timestamp,
         "event_type": event_type,
         "log_category": log_category,
@@ -362,20 +553,22 @@ def _create_base_log_event(
         "actor_identifier": actor_identifier,
         "actor_type": actor_type,
         "session_id": session_id,
-        "cloud_env_type": cloud_env_type,
-        "service_name": service_name,
-        "cloud_env_unique_id": cloud_env_unique_id,
-        "cloud_env_name": cloud_env_name,
-        "service_account_id": service_account_id,
+        # Environment fields: args override init-time config
+        "cloud_env_type": cloud_env_type or env_config.get('cloud_env_type', ''),
+        "service_name": service_name or env_config.get('service_name', ''),
+        "cloud_env_unique_id": cloud_env_unique_id or env_config.get('cloud_env_unique_id', ''),
+        "cloud_env_name": cloud_env_name or env_config.get('cloud_env_name', ''),
+        "service_account_id": service_account_id or env_config.get('service_account_id', ''),
         "source_ip_address": source_ip_address,
         "cloud_service_api_type": cloud_service_api_type,
+        **caller_context
     }
     
     # Add optional service_component_name if provided
     if service_component_name:
         event["service_component_name"] = service_component_name
     
-    # Add trace context fields (W3C Trace Context support)
+    # Add trace context fields
     if trace_id:
         event["trace_id"] = trace_id
     if span_id:
@@ -388,34 +581,35 @@ def _create_base_log_event(
     
     return event
 
+
 # ==================================
 # == Authentication & Session Functions
 # ==================================
 
 def log_user_login(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # Must be EventType.LOGIN_ATTEMPT
+    # Required base fields
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    # Required event fields
+    event_type: str,
+    user_agent: str,
+    user_role: str,
+    status: str,
+    auth_protocol: str,
+    # Common fields
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    user_agent: str = "",
-    user_role: str = "",
-    status: str = "",  # Status.SUCCESS or Status.FAILURE
-    auth_protocol: str = "",  # AuthProtocol constant (e.g., AuthProtocol.OAUTH2_JWT)
     # Optional fields
+    timestamp: str = "",
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = "",  # Context like "1st time login", "invalid_credentials",
-    # W3C Trace Context fields (optional)
+    detail: str = "",
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
@@ -423,55 +617,78 @@ def log_user_login(
     """
     Logs User Login attempts (both success and failure).
     
-    Required fields:
-    - event_type: EventType.LOGIN_ATTEMPT
-    - status: Status.SUCCESS or Status.FAILURE
-    - user_agent: Browser/device info
-    - user_role: Role of the user at the time of login
-    - auth_protocol: Authentication protocol used (AuthProtocol.OAUTH2_JWT, AuthProtocol.SAML, etc.)
+    Args:
+        cloud_env_type: Environment type (CloudEnvType.PROD, etc.). Example: "prod"
+        cloud_env_unique_id: AWS Account ID. Example: "123456789012"
+        cloud_env_name: Human-readable environment name. Example: "production-us-west-2"
+        service_account_id: IAM role ARN. Example: "arn:aws:iam::123456789012:role/AuthService"
+        service_name: Service generating the log. Example: "auth-service"
+        event_type: Must be EventType.LOGIN_ATTEMPT. Example: "login_attempt"
+        user_agent: Browser/device info. Example: "Mozilla/5.0 (Windows NT 10.0...)"
+        user_role: User's role. Example: UserRole.ADMIN → "role.classification.admin"
+        status: Outcome. Example: Status.SUCCESS → "status.general.success"
+        auth_protocol: Protocol used. Example: AuthProtocol.OAUTH2_JWT → "auth.protocol.oauth2.jwt"
+        actor_identifier: User email or ID. Example: "user@company.com"
+        actor_type: Type of actor. Example: ActorType.HUMAN_INTERNAL
+        session_id: Session identifier. Example: "sess_abc123"
+        detail: Optional context. Example: Detail.USER_INITIATED
     
-    Optional fields:
-    - detail: Context for success/failure (e.g., "1st time login", "invalid_credentials")
-    - device_id: Unique device identifier
+    Returns:
+        Dict with "status" key ("success" or "failure")
+        
+    Example:
+        >>> result = log_user_login(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::123456789012:role/AuthService",
+        ...     service_name="auth-service",
+        ...     event_type=EventType.LOGIN_ATTEMPT,
+        ...     status=Status.SUCCESS,
+        ...     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        ...     user_role=UserRole.ADMIN,
+        ...     auth_protocol=AuthProtocol.OAUTH2_JWT,
+        ...     actor_identifier="john.doe@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_abc123",
+        ...     detail=Detail.USER_INITIATED
+        ... )
     """
     try:
-        # Validate required fields including base and event-specific
-        required_fields = {
-            "event_type": event_type,
-            "status": status,
-            "user_agent": user_agent,
-            "user_role": user_role,
-            "auth_protocol": auth_protocol,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'user_agent': user_agent,
+            'user_role': user_role,
+            'status': status,
+            'auth_protocol': auth_protocol
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
+        required_fields = COMMON_REQUIRED_FIELDS + ['event_type', 'status', 'user_agent', 'user_role', 'auth_protocol']
         
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for user login: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
-            _validate_standardized_field("user_role", user_role),
-            _validate_standardized_field("auth_protocol", auth_protocol),
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'status'},
+            {'field': 'user_role'},
+            {'field': 'auth_protocol'},
+            {'field': 'actor_type'},
+            {'field': 'detail', 'allow_custom': True}
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        params['actor_type'] = actor_type
+        params['detail'] = detail
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for user login:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -491,7 +708,6 @@ def log_user_login(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
             auth_protocol=auth_protocol,
@@ -503,30 +719,31 @@ def log_user_login(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_user_login: {str(e)}"}
 
+
 def log_mfa_challenge(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # "mfa_challenge"
+    # Required base fields
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    # Required event fields
+    event_type: str,
+    user_agent: str,
+    user_role: str,
+    status: str,
+    mfa_type: str,
+    # Common fields
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    user_agent: str = "",
-    user_role: str = "",
-    status: str = "",  # "status.general.success" or "status.general.failure"
-    mfa_type: str = "",
     # Optional fields
+    timestamp: str = "",
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = "",  # Context for success/failure,
-    # W3C Trace Context fields (optional)
+    detail: str = "",
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
@@ -534,55 +751,72 @@ def log_mfa_challenge(
     """
     Logs MFA Challenge events.
     
-    Required fields:
-    - event_type: "mfa_challenge"
-    - status: "status.general.success" or "status.general.failure"
-    - user_agent: Browser/device info
-    - user_role: Role of the user attempting the challenge
-    - mfa_type: The type of MFA used (e.g., "sms", "okta verify")
+    Args:
+        cloud_env_type: Environment type. Example: CloudEnvType.PROD → "prod"
+        cloud_env_unique_id: AWS Account ID. Example: "123456789012"
+        cloud_env_name: Environment name. Example: "production"
+        service_account_id: IAM role ARN. Example: "arn:aws:iam::..."
+        service_name: Service name. Example: "auth-service"
+        event_type: Must be EventType.MFA_CHALLENGE. Example: "mfa_challenge"
+        user_agent: Browser info. Example: "Mozilla/5.0..."
+        user_role: User's role. Example: UserRole.ADMIN
+        status: Outcome. Example: Status.SUCCESS
+        mfa_type: MFA type used. Example: MfaType.OKTA_VERIFY → "okta_verify"
+        detail: Optional context. Example: Detail.MFA_INVALID_CODE for failures
     
-    Optional fields:
-    - detail: Context for success/failure
-    - device_id: Unique device identifier
+    Returns:
+        Dict with "status" key ("success" or "failure")
+        
+    Example:
+        >>> result = log_mfa_challenge(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::123456789012:role/AuthService",
+        ...     service_name="auth-service",
+        ...     event_type=EventType.MFA_CHALLENGE,
+        ...     status=Status.SUCCESS,
+        ...     user_agent="Mozilla/5.0...",
+        ...     user_role=UserRole.ADMIN,
+        ...     mfa_type=MfaType.OKTA_VERIFY,
+        ...     actor_identifier="user@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_abc123"
+        ... )
     """
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "status": status,
-            "user_agent": user_agent,
-            "user_role": user_role,
-            "mfa_type": mfa_type,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'user_agent': user_agent,
+            'user_role': user_role,
+            'status': status,
+            'mfa_type': mfa_type,
+            'actor_type': actor_type,
+            'detail': detail
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
+        required_fields = COMMON_REQUIRED_FIELDS + ['event_type', 'status', 'user_agent', 'user_role', 'mfa_type']
         
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for MFA challenge: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
-            _validate_standardized_field("user_role", user_role),
-            _validate_standardized_field("mfa_type", mfa_type),
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'status'},
+            {'field': 'user_role'},
+            {'field': 'mfa_type'},
+            {'field': 'detail', 'allow_custom': True}
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for MFA challenge:\n- " + "\n- ".join(errors)
+            }
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
-        
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -602,7 +836,6 @@ def log_mfa_challenge(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
             detail=detail,
@@ -614,29 +847,30 @@ def log_mfa_challenge(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_mfa_challenge: {str(e)}"}
 
+
 def log_user_logout(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # "user_logout"
+    # Required base fields
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    # Required event fields
+    event_type: str,
+    user_agent: str,
+    user_role: str,
+    status: str,
+    # Common fields
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    user_agent: str = "",
-    user_role: str = "",
-    status: str = "",  # "status.general.success" or "status.general.failure"
     # Optional fields
+    timestamp: str = "",
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     device_id: str = "",
-    detail: str = "",  # e.g., "timeout", "user_initiated", "concurrent_session", "admin_initiated",
-    # W3C Trace Context fields (optional)
+    detail: str = "",
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
@@ -644,52 +878,69 @@ def log_user_logout(
     """
     Logs User Logout events.
     
-    Required fields:
-    - event_type: "user_logout"
-    - status: "status.general.success" or "status.general.failure"
-    - user_agent: Browser/device info
-    - user_role: Role of the user who logged out
+    Args:
+        cloud_env_type: Environment type. Example: CloudEnvType.PROD
+        cloud_env_unique_id: AWS Account ID. Example: "123456789012"
+        cloud_env_name: Environment name. Example: "production"
+        service_account_id: IAM role ARN
+        service_name: Service name
+        event_type: Must be EventType.USER_LOGOUT. Example: "user_logout"
+        user_agent: Browser info
+        user_role: User's role
+        status: Outcome. Example: Status.SUCCESS
+        detail: Reason for logout. Example: Detail.USER_INITIATED or Detail.SESSION_TIMEOUT
     
-    Optional fields:
-    - detail: Why the logout occurred (e.g., "timeout", "user_initiated", "concurrent_session")
-    - device_id: Unique device identifier
+    Returns:
+        Dict with "status" key ("success" or "failure")
+        
+    Example:
+        >>> result = log_user_logout(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="auth-service",
+        ...     event_type=EventType.USER_LOGOUT,
+        ...     status=Status.SUCCESS,
+        ...     user_agent="Mozilla/5.0...",
+        ...     user_role=UserRole.ADMIN,
+        ...     actor_identifier="user@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_abc123",
+        ...     detail=Detail.USER_INITIATED
+        ... )
     """
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "status": status,
-            "user_agent": user_agent,
-            "user_role": user_role,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'user_agent': user_agent,
+            'user_role': user_role,
+            'status': status,
+            'actor_type': actor_type,
+            'detail': detail
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
+        required_fields = COMMON_REQUIRED_FIELDS + ['event_type', 'status', 'user_agent', 'user_role']
         
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for user logout: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
-            _validate_standardized_field("user_role", user_role),
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'status'},
+            {'field': 'user_role'},
+            {'field': 'detail', 'allow_custom': True}
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for user logout:\n- " + "\n- ".join(errors)
+            }
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
-        
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -709,7 +960,6 @@ def log_user_logout(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             user_agent=user_agent,
             user_role=user_role,
             detail=detail,
@@ -720,33 +970,193 @@ def log_user_logout(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_user_logout: {str(e)}"}
 
+
+# ==================================
+# == Customer Data Actions Functions
+# ==================================
+
+def log_record_access(
+    # Required base fields
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    # Required event fields
+    event_type: str,
+    endpoint_path: str,
+    data_sensitivity_level: str,
+    id_list: List[str],
+    detail: str,
+    # Common fields
+    actor_identifier: str = "",
+    actor_type: str = "",
+    session_id: str = "",
+    # Optional fields
+    timestamp: str = "",
+    service_component_name: str = "",
+    source_ip_address: str = "",
+    cloud_service_api_type: str = "",
+    fields_accessed: List[str] = None,
+    trace_id: str = "",
+    span_id: str = "",
+    parent_span_id: str = ""
+) -> Dict[str, str]:
+    """
+    Log record access events (single or multiple records).
+    
+    This unified function handles both single and multiple record access logging.
+    - record_count is automatically calculated from id_list
+    - Large id_list arrays are automatically batched to fit SNS message limits
+    - Each batch includes event_uuid, part_number, total_parts for correlation
+    
+    Args:
+        cloud_env_type: Environment type. Example: CloudEnvType.PROD
+        cloud_env_unique_id: AWS Account ID. Example: "123456789012"
+        cloud_env_name: Environment name. Example: "production"
+        service_account_id: IAM role ARN
+        service_name: Service name
+        event_type: Must be EventType.RECORD_ACCESS. Example: "record_access"
+        endpoint_path: API endpoint. Example: "/api/v1/customers"
+        data_sensitivity_level: Data sensitivity. Example: DataSensitivityLevel.CONFIDENTIAL
+        id_list: List of record IDs accessed. Example: ["cust_123", "cust_456"]
+        detail: Action type. Example: Detail.VIEW_LIST or Detail.VIEW_RECORD
+        fields_accessed: Optional list of fields accessed (for single record)
+    
+    Returns:
+        Dict with "status" key ("success" or "failure")
+        
+    Example:
+        >>> # Viewing a list of customer records
+        >>> result = log_record_access(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="customer-portal",
+        ...     event_type=EventType.RECORD_ACCESS,
+        ...     endpoint_path="/api/v1/customers",
+        ...     data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+        ...     id_list=["cust_123", "cust_456", "cust_789"],
+        ...     detail=Detail.VIEW_LIST,
+        ...     actor_identifier="user@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_abc123"
+        ... )
+        
+        >>> # Viewing a single record with specific fields
+        >>> result = log_record_access(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="customer-portal",
+        ...     event_type=EventType.RECORD_ACCESS,
+        ...     endpoint_path="/api/v1/customers/cust_123",
+        ...     data_sensitivity_level=DataSensitivityLevel.PII_FINANCIAL,
+        ...     id_list=["cust_123"],
+        ...     detail=Detail.VIEW_RECORD,
+        ...     fields_accessed=["ssn", "bank_account"],
+        ...     actor_identifier="finance@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_xyz789"
+        ... )
+    """
+    try:
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'endpoint_path': endpoint_path,
+            'data_sensitivity_level': data_sensitivity_level,
+            'id_list': id_list,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
+        }
+        
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'endpoint_path', 'data_sensitivity_level', 'id_list', 'detail'
+        ]
+        
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'data_sensitivity_level'},
+            {'field': 'detail'}
+        ]
+        
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for record access:\n- " + "\n- ".join(errors)
+            }
+        
+        # Build event - record_count is calculated by the publisher from id_list
+        event_kwargs = {
+            'timestamp': timestamp,
+            'event_type': event_type,
+            'log_category': LogCategory.CUSTOMER_DATA_ACTIONS,
+            'status': Status.SUCCESS,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id,
+            'cloud_env_type': cloud_env_type,
+            'service_name': service_name,
+            'service_component_name': service_component_name,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'source_ip_address': source_ip_address,
+            'cloud_service_api_type': cloud_service_api_type,
+            'trace_id': trace_id,
+            'span_id': span_id,
+            'parent_span_id': parent_span_id,
+            'endpoint_path': endpoint_path,
+            'data_sensitivity_level': data_sensitivity_level,
+            'id_list': id_list,  # Publisher will handle batching
+            'detail': detail,
+        }
+        
+        if fields_accessed:
+            event_kwargs['fields_accessed'] = fields_accessed
+        
+        event = _create_base_log_event(**event_kwargs)
+        
+        return _get_publisher().publish_message(event)
+    except Exception as e:
+        return {"status": "failure", "message": f"Error in log_record_access: {str(e)}"}
+
+
 # ==================================
 # == Authorization & Access Functions
 # ==================================
 
 def log_permission_role_change(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # "permission_change"
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_user_identifier: str,
+    object_changed: str,
+    previous_value: str,
+    new_value: str,
     actor_identifier: str = "",
     actor_type: str = "",
     session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_user_identifier: str = "",
-    object_changed: str = "",  # e.g., "Role", "Group"
-    previous_value: str = "",
-    new_value: str = "",
-    # Optional fields
+    timestamp: str = "",
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
     detail: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
@@ -754,53 +1164,73 @@ def log_permission_role_change(
     """
     Logs Permission/Role/Group Membership Change events.
     
-    Required fields:
-    - event_type: "permission_change"
-    - target_user_identifier: The user whose permissions were modified
-    - object_changed: The entity that was changed (e.g., "Role", "Group")
-    - previous_value: The value before the change
-    - new_value: The value after the change
+    Args:
+        cloud_env_type: Environment type. Example: CloudEnvType.PROD
+        cloud_env_unique_id: AWS Account ID
+        cloud_env_name: Environment name
+        service_account_id: IAM role ARN
+        service_name: Service name
+        event_type: Must be EventType.PERMISSION_CHANGE
+        target_user_identifier: User whose permissions changed
+        object_changed: What was changed (e.g., "Role", "Group")
+        previous_value: Value before change
+        new_value: Value after change
+        detail: Optional context
+    
+    Example:
+        >>> result = log_permission_role_change(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="admin-service",
+        ...     event_type=EventType.PERMISSION_CHANGE,
+        ...     target_user_identifier="target.user@sunrun.com",
+        ...     object_changed="Role",
+        ...     previous_value="viewer",
+        ...     new_value="admin",
+        ...     actor_identifier="admin@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_admin123",
+        ...     detail=Detail.ADMIN_INITIATED
+        ... )
     """
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_user_identifier": target_user_identifier,
-            "object_changed": object_changed,
-            "previous_value": previous_value,
-            "new_value": new_value,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_user_identifier': target_user_identifier,
+            'object_changed': object_changed,
+            'previous_value': previous_value,
+            'new_value': new_value,
+            'detail': detail
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for permission change: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'target_user_identifier', 'object_changed', 'previous_value', 'new_value'
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for permission change:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
             log_category=LogCategory.AUTHZ_ACCESS,
-            status=Status.SUCCESS,  # Permission changes are typically successful when logged
+            status=Status.SUCCESS,
             actor_identifier=actor_identifier,
             actor_type=actor_type,
             session_id=session_id,
@@ -815,7 +1245,6 @@ def log_permission_role_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_user_identifier=target_user_identifier,
             object_changed=object_changed,
             previous_value=previous_value,
@@ -827,71 +1256,88 @@ def log_permission_role_change(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_permission_role_change: {str(e)}"}
 
+
 def log_user_status_change(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_user_identifier: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "user_status_change"
-    actor_identifier: str = "",
-    actor_type: str = "",
-    session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_user_identifier: str = "",
-    detail: str = "",  # e.g., "detail.action.user_disabled", "detail.action.user_deleted"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
-    Logs User Status Events (Disabled/Blocked, Enabled/Unblocked, Deleted).
+    Log user status changes (enabled/disabled/deleted/locked/unlocked).
     
-    Required fields:
-    - event_type: "user_status_change"
-    - target_user_identifier: The user whose status was changed
-    - detail: The specific action (e.g., "detail.action.user_disabled", "detail.action.user_enabled")
+    Args:
+        event_type: Must be EventType.USER_STATUS_CHANGE
+        target_user_identifier: User whose status changed
+        detail: Action taken. Example: Detail.USER_DISABLED
+    
+    Example:
+        >>> result = log_user_status_change(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="admin-service",
+        ...     event_type=EventType.USER_STATUS_CHANGE,
+        ...     target_user_identifier="terminated.user@sunrun.com",
+        ...     detail=Detail.USER_DISABLED,
+        ...     actor_identifier="admin@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_admin123"
+        ... )
     """
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_user_identifier": target_user_identifier,
-            "detail": detail,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_user_identifier': target_user_identifier,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for user status change: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("detail", detail),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_user_identifier', 'detail'
         ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'detail'}
+        ]
         
-        # Create the log event
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for user status change:\n- " + "\n- ".join(errors)
+            }
+        
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
             log_category=LogCategory.AUTHZ_ACCESS,
-            status=Status.SUCCESS,  # Status changes are typically successful when logged
+            status=Status.SUCCESS,
             actor_identifier=actor_identifier,
             actor_type=actor_type,
             session_id=session_id,
@@ -906,7 +1352,6 @@ def log_user_status_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_user_identifier=target_user_identifier,
             detail=detail,
         )
@@ -915,78 +1360,88 @@ def log_user_status_change(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_user_status_change: {str(e)}"}
 
+
 def log_impersonation_event(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_user_identifier: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "impersonation_event"
-    actor_identifier: str = "",  # The admin/support user
-    actor_type: str = "",
-    session_id: str = "",  # The admin's session
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_user_identifier: str = "",  # The user being impersonated
-    detail: str = "",  # "detail.action.impersonation_start" or "detail.action.impersonation_stop"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
     """
-    Logs Impersonation Events (Start/Stop).
+    Log user impersonation start/stop events.
     
-    Required fields:
-    - event_type: "impersonation_event"
-    - actor_identifier: The admin/support user performing the impersonation
-    - session_id: The admin's session
-    - target_user_identifier: The user being impersonated
-    - detail: "detail.action.impersonation_start" or "detail.action.impersonation_stop"
+    Args:
+        event_type: Must be EventType.IMPERSONATION_EVENT
+        target_user_identifier: User being impersonated
+        detail: Action type. Example: Detail.IMPERSONATION_START or Detail.IMPERSONATION_STOP
+    
+    Example:
+        >>> result = log_impersonation_event(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::...",
+        ...     service_name="support-portal",
+        ...     event_type=EventType.IMPERSONATION_EVENT,
+        ...     target_user_identifier="customer@example.com",
+        ...     detail=Detail.IMPERSONATION_START,
+        ...     actor_identifier="support.agent@sunrun.com",
+        ...     actor_type=ActorType.HUMAN_INTERNAL,
+        ...     session_id="sess_support123"
+        ... )
     """
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_user_identifier": target_user_identifier,
-            "detail": detail,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_user_identifier': target_user_identifier,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for impersonation event: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_user_identifier', 'detail'
         ]
         
-        # Validate detail field (required for this function)
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for impersonation event:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
             log_category=LogCategory.AUTHZ_ACCESS,
-            status=Status.SUCCESS,  # Impersonation events are typically successful when logged
+            status=Status.SUCCESS,
             actor_identifier=actor_identifier,
             actor_type=actor_type,
             session_id=session_id,
@@ -1001,7 +1456,6 @@ def log_impersonation_event(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_user_identifier=target_user_identifier,
             detail=detail,
         )
@@ -1010,82 +1464,71 @@ def log_impersonation_event(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_impersonation_event: {str(e)}"}
 
+
 def log_user_invite_event(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_user_email: str,
+    assigned_role: str,
+    invite_status: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "user_invite_event"
-    actor_identifier: str = "",  # Who sent the invite
-    actor_type: str = "",
-    session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_user_email: str = "",  # Email of the invitee
-    assigned_role: str = "",
-    invite_status: str = "",  # e.g., "sent", "accepted", "revoked"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    detail: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs User Invite events (Sent/Accepted/Revoked/Expired).
-    
-    Required fields:
-    - event_type: "user_invite_event"
-    - actor_identifier: Who sent the invite
-    - target_user_email: Email address of the invited user
-    - assigned_role: The role assigned in the invitation
-    - invite_status: Current status of the invite (e.g., "sent", "accepted", "revoked")
-    """
+    """Log user invitation events."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_user_email": target_user_email,
-            "assigned_role": assigned_role,
-            "invite_status": invite_status,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_user_email': target_user_email,
+            'assigned_role': assigned_role,
+            'invite_status': invite_status,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for user invite event: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("invite_status", invite_status),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_user_email', 'assigned_role', 'invite_status', 'detail'
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'invite_status'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for user invite event:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
             log_category=LogCategory.AUTHZ_ACCESS,
-            status=Status.SUCCESS,  # Invite events are typically successful when logged
+            status=Status.SUCCESS,
             actor_identifier=actor_identifier,
             actor_type=actor_type,
             session_id=session_id,
@@ -1100,7 +1543,6 @@ def log_user_invite_event(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_user_email=target_user_email,
             assigned_role=assigned_role,
             invite_status=invite_status,
@@ -1111,96 +1553,81 @@ def log_user_invite_event(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_user_invite_event: {str(e)}"}
 
+
 # ==================================
 # == API Endpoint Access Functions
 # ==================================
 
 def log_api_request(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    auth_protocol: str,
+    endpoint_path: str,
+    http_method: str,
+    authorization_status: str,
+    endpoint_sensitivity: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "api_request_processed"
-    actor_identifier: str = "",  # Service account or client ID or normalized user ID
-    actor_type: str = "",
-    session_id: str = "",  # Important to correlate user session if using user flow
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    auth_protocol: str = "",  # e.g., "api_key", "oauth2_jwt", "oauth2_client_secret"
-    endpoint_path: str = "",  # The specific endpoint URI accessed
-    http_method: str = "",  # GET, POST, PUT, DELETE
-    authorization_status: str = "",  # Success/Failure
-    endpoint_sensitivity: str = "",  # e.g., "Confidential-PII", "Public", "Login"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    detail: str = "",  # e.g., "invalid_token", "expired_token", "ip_not_on_allowlist",
-    # W3C Trace Context fields (optional)
+    detail: str = "",
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs API Request Processed events.
-    
-    Required fields:
-    - event_type: "api_request_processed"
-    - auth_protocol: The authentication protocol used
-    - endpoint_path: The path of the API endpoint accessed
-    - http_method: The HTTP method used
-    - authorization_status: Success/Failure status
-    - endpoint_sensitivity: The sensitivity level of the endpoint
-    
-    Optional fields:
-    - detail: Context for failures (e.g., "invalid_token", "expired_token")
-    """
+    """Log API endpoint access attempts."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "auth_protocol": auth_protocol,
-            "endpoint_path": endpoint_path,
-            "http_method": http_method,
-            "authorization_status": authorization_status,
-            "endpoint_sensitivity": endpoint_sensitivity,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'auth_protocol': auth_protocol,
+            'endpoint_path': endpoint_path,
+            'http_method': http_method,
+            'authorization_status': authorization_status,
+            'endpoint_sensitivity': endpoint_sensitivity,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id,
+            'detail': detail
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for API request: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("auth_protocol", auth_protocol),
-            _validate_standardized_field("http_method", http_method),
-            _validate_standardized_field("endpoint_sensitivity", endpoint_sensitivity),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'auth_protocol', 'endpoint_path', 'http_method', 'authorization_status', 'endpoint_sensitivity'
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'auth_protocol'},
+            {'field': 'http_method'},
+            {'field': 'endpoint_sensitivity'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for API request:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
             log_category=LogCategory.API_ENDPOINT_ACCESS,
-            status=authorization_status,  # Use authorization_status as the main status
+            status=authorization_status,
             actor_identifier=actor_identifier,
             actor_type=actor_type,
             session_id=session_id,
@@ -1215,7 +1642,6 @@ def log_api_request(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             auth_protocol=auth_protocol,
             endpoint_path=endpoint_path,
             http_method=http_method,
@@ -1228,298 +1654,70 @@ def log_api_request(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_api_request: {str(e)}"}
 
-# ==================================
-# == Customer Data Actions Functions
-# ==================================
-
-def log_multi_record_access(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # "multi_record_access"
-    actor_identifier: str = "",  # e.g., api_client_id, normalized_user_id
-    actor_type: str = "",
-    session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    endpoint_path: str = "",  # e.g., "/api/v1/customers"
-    data_sensitivity_level: str = "",  # e.g., "Confidential-PII"
-    record_count: int = 0,
-    customer_id_list: List[str] = None,
-    detail: str = "",  # e.g., "detail.action.view_list", "detail.action.export_report"
-    # Optional fields
-    source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
-    trace_id: str = "",
-    span_id: str = "",
-    parent_span_id: str = ""
-) -> Dict[str, str]:
-    """
-    Logs Multi-Record Customer Data Actions (View/Modify List, Export/Download Report).
-    
-    Required fields:
-    - event_type: "multi_record_access"
-    - endpoint_path: The API endpoint used for the action
-    - data_sensitivity_level: The sensitivity of the data being accessed
-    - record_count: The number of records affected/accessed
-    - customer_id_list: A list of the unique customer IDs accessed
-    - detail: The specific action (e.g., "detail.action.view_list", "detail.action.export_report")
-    """
-    try:
-        # Handle default for customer_id_list
-        if customer_id_list is None:
-            customer_id_list = []
-        
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "endpoint_path": endpoint_path,
-            "data_sensitivity_level": data_sensitivity_level,
-            "detail": detail,
-        }
-        
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        # Check numeric fields
-        if record_count <= 0:
-            missing_fields.append("record_count")
-        
-        if not customer_id_list:
-            missing_fields.append("customer_id_list")
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for multi-record access: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("detail", detail),
-        ]
-        
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
-        
-        # Create the log event
-        event = _create_base_log_event(
-            timestamp=timestamp,
-            event_type=event_type,
-            log_category=LogCategory.CUSTOMER_DATA_ACTIONS,
-            status=Status.SUCCESS,  # Multi-record access events are typically successful when logged
-            actor_identifier=actor_identifier,
-            actor_type=actor_type,
-            session_id=session_id,
-            cloud_env_type=cloud_env_type,
-            service_name=service_name,
-            service_component_name=service_component_name,
-            cloud_env_unique_id=cloud_env_unique_id,
-            cloud_env_name=cloud_env_name,
-            service_account_id=service_account_id,
-            source_ip_address=source_ip_address,
-            cloud_service_api_type=cloud_service_api_type,
-            trace_id=trace_id,
-            span_id=span_id,
-            parent_span_id=parent_span_id,
-            # Event-specific fields
-            endpoint_path=endpoint_path,
-            data_sensitivity_level=data_sensitivity_level,
-            record_count=record_count,
-            customer_id_list=customer_id_list,
-            detail=detail,
-        )
-        
-        return _get_publisher().publish_message(event)
-    except Exception as e:
-        return {"status": "failure", "message": f"Error in log_multi_record_access: {str(e)}"}
-
-def log_single_record_access(
-    # Base log fields (required but with defaults to avoid crashes)
-    timestamp: str = "",
-    event_type: str = "",  # "single_record_access"
-    actor_identifier: str = "",  # e.g., api_client_id, normalized_user_id
-    actor_type: str = "",
-    session_id: str = "",
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    customer_id: str = "",  # Whose data was accessed
-    fields_accessed: List[str] = None,  # e.g., ["email", "phone"]
-    detail: str = "",  # e.g., "detail.action.view_record", "detail.action.edit_record"
-    # Optional fields
-    source_ip_address: str = "",
-    cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
-    trace_id: str = "",
-    span_id: str = "",
-    parent_span_id: str = ""
-) -> Dict[str, str]:
-    """
-    Logs Single Record Customer Data Actions (View/Modify Personal Data).
-    
-    Required fields:
-    - event_type: "single_record_access"
-    - customer_id: The unique ID of the customer whose record was accessed
-    - fields_accessed: A list of the specific fields that were viewed or modified
-    - detail: The specific action (e.g., "detail.action.view_record", "detail.action.edit_record")
-    """
-    try:
-        # Handle default for fields_accessed
-        if fields_accessed is None:
-            fields_accessed = []
-        
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "customer_id": customer_id,
-            "detail": detail,
-        }
-        
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if not fields_accessed:
-            missing_fields.append("fields_accessed")
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for single record access: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-        ]
-        
-        # Validate detail field (required for this function)
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
-        
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
-        
-        # Create the log event
-        event = _create_base_log_event(
-            timestamp=timestamp,
-            event_type=event_type,
-            log_category=LogCategory.CUSTOMER_DATA_ACTIONS,
-            status=Status.SUCCESS,  # Single record access events are typically successful when logged
-            actor_identifier=actor_identifier,
-            actor_type=actor_type,
-            session_id=session_id,
-            cloud_env_type=cloud_env_type,
-            service_name=service_name,
-            service_component_name=service_component_name,
-            cloud_env_unique_id=cloud_env_unique_id,
-            cloud_env_name=cloud_env_name,
-            service_account_id=service_account_id,
-            source_ip_address=source_ip_address,
-            cloud_service_api_type=cloud_service_api_type,
-            trace_id=trace_id,
-            span_id=span_id,
-            parent_span_id=parent_span_id,
-            # Event-specific fields
-            customer_id=customer_id,
-            fields_accessed=fields_accessed,
-            detail=detail,
-        )
-        
-        return _get_publisher().publish_message(event)
-    except Exception as e:
-        return {"status": "failure", "message": f"Error in log_single_record_access: {str(e)}"}
 
 # ==================================
 # == Key Configuration Changes Functions
 # ==================================
 
 def log_mfa_status_change(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_object: str,
+    status: str,
+    mfa_id: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "mfa_status_change"
-    actor_identifier: str = "",  # Who made the change
-    actor_type: str = "",
-    session_id: str = "",  # The admin's session
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_object: str = "",  # e.g., User ID for MFA
-    status: str = "",  # Success/Failure
-    mfa_id: str = "",  # Associated unique ID of MFA option that was impacted
-    detail: str = "",  # e.g., "detail.action.mfa_disabled", "detail.action.mfa_enabled", "detail.action.new_mfa_device"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs MFA Status Change events.
-    
-    Required fields:
-    - event_type: "mfa_status_change"
-    - target_object: The User ID or object whose MFA status was changed
-    - status: Success/Failure status
-    - mfa_id: The unique ID of the MFA device that was impacted
-    - detail: The specific action (e.g., "detail.action.mfa_disabled", "detail.action.mfa_enabled", "detail.action.new_mfa_device")
-    """
+    """Log MFA configuration changes."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_object": target_object,
-            "status": status,
-            "mfa_id": mfa_id,
-            "detail": detail,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_object': target_object,
+            'status': status,
+            'mfa_id': mfa_id,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for MFA status change: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_object', 'status', 'mfa_id', 'detail'
         ]
         
-        # Validate detail field (required for this function)
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'status'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for MFA status change:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -1539,7 +1737,6 @@ def log_mfa_status_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_object=target_object,
             mfa_id=mfa_id,
             detail=detail,
@@ -1549,75 +1746,64 @@ def log_mfa_status_change(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_mfa_status_change: {str(e)}"}
 
+
 def log_password_change_reset(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_object: str,
+    status: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "password_change_reset"
-    actor_identifier: str = "",  # Who made the change
-    actor_type: str = "",
-    session_id: str = "",  # The admin's session
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_object: str = "",  # e.g., User ID
-    status: str = "",  # Success/Failure
-    detail: str = "",  # e.g., "detail.action.password_change", "detail.action.password_reset"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs Password Change/Reset events.
-    
-    Required fields:
-    - event_type: "password_change_reset"
-    - target_object: The User ID whose password was changed or reset
-    - status: Success/Failure status
-    - detail: The specific action (e.g., "detail.action.password_change", "detail.action.password_reset")
-    """
+    """Log password change/reset events."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_object": target_object,
-            "status": status,
-            "detail": detail,
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_object': target_object,
+            'status': status,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
         }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for password change/reset: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_object', 'status', 'detail'
         ]
         
-        # Validate detail field (required for this function)
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'status'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for password change/reset:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -1637,7 +1823,6 @@ def log_password_change_reset(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_object=target_object,
             detail=detail,
         )
@@ -1646,74 +1831,64 @@ def log_password_change_reset(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_password_change_reset: {str(e)}"}
 
+
 def log_api_key_lifecycle(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_object: str,
+    status: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "api_key_lifecycle"
-    actor_identifier: str = "",  # Who made the change
-    actor_type: str = "",
-    session_id: str = "",  # The admin's session
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_object: str = "",  # e.g., API Client ID
-    status: str = "",  # Success/Failure
-    detail: str = "",  # e.g., "detail.action.api_key_created", "detail.action.api_key_revoked", "detail.action.api_key_permissions_modified"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs API Key Lifecycle events (Created, Revoked, Permissions Modified).
-    
-    Required fields:
-    - event_type: "api_key_lifecycle"
-    - target_object: The API Client ID or key that was affected
-    - status: Success/Failure status
-    - detail: The specific action (e.g., "detail.action.api_key_created", "detail.action.api_key_revoked")
-    """
+    """Log API key management events."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_object": target_object,
-            "status": status,
-            }
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_object': target_object,
+            'status': status,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
+        }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for API key lifecycle: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_object', 'status', 'detail'
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'status'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for API key lifecycle:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -1733,7 +1908,6 @@ def log_api_key_lifecycle(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_object=target_object,
             detail=detail,
         )
@@ -1742,74 +1916,64 @@ def log_api_key_lifecycle(
     except Exception as e:
         return {"status": "failure", "message": f"Error in log_api_key_lifecycle: {str(e)}"}
 
+
 def log_auth_mechanism_modification(
-    # Base log fields (required but with defaults to avoid crashes)
+    cloud_env_type: str,
+    cloud_env_unique_id: str,
+    cloud_env_name: str,
+    service_account_id: str,
+    service_name: str,
+    event_type: str,
+    target_object: str,
+    status: str,
+    detail: str,
+    actor_identifier: str,
+    actor_type: str,
+    session_id: str,
     timestamp: str = "",
-    event_type: str = "",  # "auth_mechanism_modification"
-    actor_identifier: str = "",  # Who made the change
-    actor_type: str = "",
-    session_id: str = "",  # The admin's session
-    cloud_env_type: str = "",
-    service_name: str = "",
-    service_component_name: str = "",  # Optional: specific component within a service
-    cloud_env_unique_id: str = "",
-    cloud_env_name: str = "",
-    service_account_id: str = "",
-    # Event-specific required fields
-    target_object: str = "",  # e.g., sso_assertion_url, sso_certificate, local_authentication
-    status: str = "",  # Success/Failure
-    detail: str = "",  # e.g., "detail.action.new_sso_provider", "detail.action.enable_local_authn", "detail.action.disable_sso"
-    # Optional fields
+    service_component_name: str = "",
     source_ip_address: str = "",
     cloud_service_api_type: str = "",
-    # W3C Trace Context fields (optional)
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = ""
 ) -> Dict[str, str]:
-    """
-    Logs Authentication Mechanism Modification events (disable SSO, allow 2nd authN in parallel).
-    
-    Required fields:
-    - event_type: "auth_mechanism_modification"
-    - target_object: The configuration object that was changed
-    - status: Success/Failure status
-    - detail: The specific action (e.g., "detail.action.new_sso_provider", "detail.action.enable_local_authn")
-    """
+    """Log authentication mechanism changes."""
     try:
-        # Validate required fields
-        required_fields = {
-            "event_type": event_type,
-            "target_object": target_object,
-            "status": status,
-            }
+        params = {
+            'cloud_env_type': cloud_env_type,
+            'cloud_env_unique_id': cloud_env_unique_id,
+            'cloud_env_name': cloud_env_name,
+            'service_account_id': service_account_id,
+            'service_name': service_name,
+            'event_type': event_type,
+            'target_object': target_object,
+            'status': status,
+            'detail': detail,
+            'actor_identifier': actor_identifier,
+            'actor_type': actor_type,
+            'session_id': session_id
+        }
         
-        missing_fields = [field for field, value in required_fields.items() 
-                         if not value or value.strip() == ""]
-        
-        if missing_fields:
-            return {
-                "status": "failure", 
-                "message": f"Required fields missing for auth mechanism modification: {', '.join(missing_fields)}"
-            }
-        
-        # Validate standardized values
-        standardized_validations = [
-            _validate_standardized_field("event_type", event_type),
-            _validate_standardized_field("status", status),
+        required_fields = COMMON_REQUIRED_FIELDS + [
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_object', 'status', 'detail'
         ]
         
-        # Validate detail field only if provided
-        if detail and detail.strip():
-            standardized_validations.append(
-                _validate_standardized_field("detail", detail, allow_custom_for_detail=True)
-            )
+        standardized_fields = [
+            {'field': 'event_type'},
+            {'field': 'actor_type'},
+            {'field': 'status'},
+            {'field': 'detail', 'allow_custom': True}
+        ]
         
-        for validation in standardized_validations:
-            if not validation["valid"]:
-                return {"status": "failure", "message": validation["message"]}
+        errors = _validate_and_collect_errors(params, required_fields, standardized_fields)
+        if errors:
+            return {
+                "status": "failure",
+                "message": f"Validation errors for auth mechanism modification:\n- " + "\n- ".join(errors)
+            }
         
-        # Create the log event
         event = _create_base_log_event(
             timestamp=timestamp,
             event_type=event_type,
@@ -1829,7 +1993,6 @@ def log_auth_mechanism_modification(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
-            # Event-specific fields
             target_object=target_object,
             detail=detail,
         )

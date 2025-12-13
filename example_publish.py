@@ -236,7 +236,7 @@ def example_api_access_events():
             endpoint_path="/api/v1/customers",
             http_method=HttpMethod.GET,
             authorization_status=Status.SUCCESS,
-            endpoint_sensitivity=EndpointSensitivity.PII_BASIC,
+            endpoint_sensitivity=EndpointSensitivity.CONFIDENTIAL,
             source_ip_address="203.0.113.54",
             detail="Successful customer data retrieval"
         )
@@ -246,11 +246,11 @@ def example_data_access_events():
     """Examples of customer data access logging."""
     print("📊 Customer Data Access Events")
     
-    # 10. Multi-Record Access
+    # 10. Record Access - Multiple Records (bulk export)
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
-            SecurityLogging.log_multi_record_access,
-            event_type=EventType.MULTI_RECORD_ACCESS,
+            SecurityLogging.log_record_access,
+            event_type=EventType.RECORD_ACCESS,
             actor_identifier="analyst@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id="session-analyst-001",
@@ -260,19 +260,18 @@ def example_data_access_events():
             cloud_env_name="production",
             service_account_id="lambda-execution-role",
             endpoint_path="/api/v1/customers/bulk-export",
-            data_sensitivity_level="Confidential-PII",
-            record_count=250,
-            customer_id_list=["cust-001", "cust-002", "cust-003", "cust-004"],
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+            id_list=["cust-001", "cust-002", "cust-003", "cust-004"],
             detail=Detail.EXPORT_REPORT,
             source_ip_address="192.168.2.100"
         )
-        SecurityLogging.fire_and_forget(future, EventType.MULTI_RECORD_ACCESS)
+        SecurityLogging.fire_and_forget(future, EventType.RECORD_ACCESS)
     
-    # 11. Single Record Access
+    # 11. Record Access - Single Record
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
-            SecurityLogging.log_single_record_access,
-            event_type=EventType.SINGLE_RECORD_ACCESS,
+            SecurityLogging.log_record_access,
+            event_type=EventType.RECORD_ACCESS,
             actor_identifier="support@company.com",
             actor_type=ActorType.HUMAN_INTERNAL,
             session_id="session-support-002",
@@ -281,12 +280,14 @@ def example_data_access_events():
             cloud_env_unique_id="123456789012",
             cloud_env_name="production",
             service_account_id="lambda-execution-role",
-            customer_id="customer-12345",
+            endpoint_path="/api/v1/customers/customer-12345",
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+            id_list=["customer-12345"],  # Single record - just one ID in the list
             fields_accessed=["name", "email", "phone", "address"],
             detail=Detail.VIEW_RECORD,
             source_ip_address="10.0.2.20"
         )
-        SecurityLogging.fire_and_forget(future, EventType.SINGLE_RECORD_ACCESS)
+        SecurityLogging.fire_and_forget(future, EventType.RECORD_ACCESS)
 
 def example_configuration_events():
     """Examples of key configuration change logging."""

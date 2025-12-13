@@ -87,9 +87,21 @@ class TestSecurityLogging(unittest.TestCase):
     def test_missing_required_fields(self):
         """Test that missing required fields are handled gracefully."""
         result = SecurityLogging.log_user_login(
-            # Only provide minimal parameters
+            # Provide base required fields
+            cloud_env_type=CloudEnvType.TEST,
+            service_name="test-service",
+            cloud_env_unique_id="123456789012",
+            cloud_env_name="test-env",
+            service_account_id="sa-test@project.iam",
+            # Provide minimal event-specific parameters (missing or empty)
             actor_identifier="user@company.com",
-            user_agent="Mozilla/5.0"
+            actor_type="",  # Empty - should trigger validation failure
+            session_id="",  # Empty - should trigger validation failure
+            event_type="",  # Empty - should trigger validation failure
+            user_agent="Mozilla/5.0",
+            user_role="",  # Empty - should trigger validation failure
+            auth_protocol=AuthProtocol.FORM_BASED,
+            status=""  # Empty - should trigger validation failure
         )
         
         # Should fail gracefully without crashing
@@ -186,14 +198,22 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
         SecurityLogging.set_security_logging_error_handler(test_error_handler)
         
         with ThreadPoolExecutor() as executor:
-            # Submit an invalid logging call (missing required fields)
+            # Submit an invalid logging call (empty required fields to trigger failure)
             future = executor.submit(
                 SecurityLogging.log_user_login,
-                # Missing required fields to trigger failure
+                # Provide all required fields but with empty values to trigger validation failure
+                cloud_env_type=CloudEnvType.TEST,
+                service_name="test-service",
+                cloud_env_unique_id="123456789012",
+                cloud_env_name="test-env",
+                service_account_id="sa-test@project.iam",
                 event_type="",  # Empty event type
                 actor_identifier="",  # Empty actor
+                actor_type=ActorType.HUMAN_INTERNAL,
+                session_id="session-123",
                 user_agent="",  # Empty user agent
                 user_role="",  # Empty user role
+                auth_protocol=AuthProtocol.FORM_BASED,
                 status=""  # Empty status
             )
             
@@ -214,13 +234,21 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
         # Capture stderr to verify default error handling
         with patch('sys.stderr') as mock_stderr:
             with ThreadPoolExecutor() as executor:
-                # Submit an invalid logging call
+                # Submit an invalid logging call (empty required fields)
                 future = executor.submit(
                     SecurityLogging.log_user_login,
+                    cloud_env_type=CloudEnvType.TEST,
+                    service_name="test-service",
+                    cloud_env_unique_id="123456789012",
+                    cloud_env_name="test-env",
+                    service_account_id="sa-test@project.iam",
                     event_type="",  # Empty to trigger failure
                     actor_identifier="",
+                    actor_type=ActorType.HUMAN_INTERNAL,
+                    session_id="session-123",
                     user_agent="",
                     user_role="",
+                    auth_protocol=AuthProtocol.FORM_BASED,
                     status=""
                 )
                 
@@ -332,13 +360,21 @@ class TestFireAndForgetFunctionality(unittest.TestCase):
                         status=Status.SUCCESS
                     )
                 else:
-                    # Invalid call (missing fields)
+                    # Invalid call (empty required fields)
                     future = executor.submit(
                         SecurityLogging.log_user_login,
+                        cloud_env_type=CloudEnvType.TEST,
+                        service_name="test-service",
+                        cloud_env_unique_id="123456789012",
+                        cloud_env_name="test-env",
+                        service_account_id="sa-test@project.iam",
                         event_type="",  # Empty to trigger failure
                         actor_identifier="",
+                        actor_type=ActorType.HUMAN_INTERNAL,
+                        session_id="session-123",
                         user_agent="",
                         user_role="",
+                        auth_protocol=AuthProtocol.FORM_BASED,
                         status=""
                     )
                 
