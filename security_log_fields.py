@@ -557,7 +557,7 @@ class DataSensitivityLevel:
           → YES: Is it highly sensitive (SSN, financial, credentials, health)?
                  → YES: RESTRICTED
                  → NO: CONFIDENTIAL
-          → NO: INTERNAL
+          → NO: NON_PUBLIC
     
     Example:
         >>> from security_log_fields import DataSensitivityLevel
@@ -566,7 +566,7 @@ class DataSensitivityLevel:
         >>> data_sensitivity_level = DataSensitivityLevel.PUBLIC
         >>> 
         >>> # Internal dashboard metrics (employees only)
-        >>> data_sensitivity_level = DataSensitivityLevel.INTERNAL
+        >>> data_sensitivity_level = DataSensitivityLevel.NON_PUBLIC
         >>> 
         >>> # Customer agreement records (customer data)
         >>> data_sensitivity_level = DataSensitivityLevel.CONFIDENTIAL
@@ -584,9 +584,9 @@ class DataSensitivityLevel:
     Examples: Product catalogs, marketing content, public APIs, help docs
     """
     
-    INTERNAL = "sensitivity.level.internal"
+    NON_PUBLIC = "sensitivity.level.non_public"
     """
-    INTERNAL - Non-public internal business data, not customer-specific.
+    NON_PUBLIC - Non-public internal business data, not customer-specific.
     
     Use for data that is internal to the organization but doesn't contain
     customer information or sensitive business secrets.
@@ -638,8 +638,8 @@ class EndpointSensitivity:
     PUBLIC = "sensitivity.level.public"
     """PUBLIC - Publicly accessible endpoint. Examples: Public APIs, marketing pages"""
     
-    INTERNAL = "sensitivity.level.internal"
-    """INTERNAL - Internal-only endpoint, non-customer data. Examples: Admin dashboards, configs"""
+    NON_PUBLIC = "sensitivity.level.non_public"
+    """NON_PUBLIC - Non-public endpoint, non-customer data. Examples: Admin dashboards, configs"""
     
     CONFIDENTIAL = "sensitivity.level.confidential"
     """CONFIDENTIAL - Customer data or business-sensitive endpoint. Examples: Customer records"""

@@ -322,11 +322,11 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             HttpMethod.DELETE, HttpMethod.HEAD, HttpMethod.OPTIONS
         ],
         "endpoint_sensitivity": [
-            EndpointSensitivity.PUBLIC, EndpointSensitivity.INTERNAL, 
+            EndpointSensitivity.PUBLIC, EndpointSensitivity.NON_PUBLIC, 
             EndpointSensitivity.CONFIDENTIAL, EndpointSensitivity.RESTRICTED
         ],
         "data_sensitivity_level": [
-            DataSensitivityLevel.PUBLIC, DataSensitivityLevel.INTERNAL, 
+            DataSensitivityLevel.PUBLIC, DataSensitivityLevel.NON_PUBLIC, 
             DataSensitivityLevel.CONFIDENTIAL, DataSensitivityLevel.RESTRICTED
         ],
         "user_role": [
