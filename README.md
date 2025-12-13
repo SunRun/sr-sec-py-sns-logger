@@ -284,6 +284,7 @@ Before writing code, map out where you'll get each required value:
 Here's a complete example showing how to integrate security logging into a Flask login route:
 
 ```python
+import os
 import sr_sec_py_sns_logger as SecurityLogging
 from security_log_fields import *
 from concurrent.futures import ThreadPoolExecutor
@@ -291,56 +292,53 @@ from flask import Flask, request, session
 
 app = Flask(__name__)
 
+# ===== STEP 1: Initialize ONCE at app startup =====
+# Environment fields are set here and automatically included in ALL subsequent logs
+SecurityLogging.init_security_logging(
+    test_mode=(os.environ.get('ENV') != 'production'),
+    cloud_env_type=CloudEnvType.PROD,
+    cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
+    cloud_env_name='production',
+    service_account_id='ecs-task-role',
+    service_name='api-server',
+)
+
+# ===== STEP 2: Use in your routes - much simpler! =====
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
-        # Your existing authentication logic
         email = request.json.get('email')
         password = request.json.get('password')
         user = authenticate_user(email, password)
         
         if not user:
-            # Log failed login attempt (fire-and-forget, won't block response)
+            # Log failed login - only event-specific fields needed!
             with ThreadPoolExecutor() as executor:
                 future = executor.submit(SecurityLogging.log_user_login,
-                    actor_identifier=email,                          # ← Email from login form
+                    actor_identifier=email,
                     actor_type=ActorType.HUMAN_INTERNAL,
-                    session_id=session.sid,                          # ← From Flask session
-                    cloud_env_type=CloudEnvType.PROD,
-                    service_name="api-server",
-                    cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
-                    cloud_env_name="production",
-                    service_account_id="ecs-task-role",
-                    
-                    event_type=EventType.LOGIN_ATTEMPT,              # ← Failed login attempt
+                    session_id=session.sid,
+                    event_type=EventType.LOGIN_ATTEMPT,
                     status=Status.FAILURE,
-                    user_agent=request.headers.get('User-Agent'),    # ← From Flask request
-                    user_role=UserRole.UNKNOWN,                      # ← Unknown for failed login
-                    auth_protocol=AuthProtocol.FORM_BASED,           # ← Username/password form login
+                    user_agent=request.headers.get('User-Agent'),
+                    user_role=UserRole.UNKNOWN,
+                    auth_protocol=AuthProtocol.FORM_BASED,
                     detail=Detail.INVALID_CREDENTIALS,
                 )
                 SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
-            
             return {'error': 'Invalid credentials'}, 401
         
-        # Log successful login (fire-and-forget, won't block response)
+        # Log successful login
         with ThreadPoolExecutor() as executor:
             future = executor.submit(SecurityLogging.log_user_login,
-                actor_identifier=user.email,                       # ← From authenticated user object
+                actor_identifier=user.email,
                 actor_type=ActorType.HUMAN_INTERNAL,
                 session_id=session.sid,
-                cloud_env_type=CloudEnvType.PROD,
-                service_name="api-server",
-                cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
-                cloud_env_name="production",
-                service_account_id="ecs-task-role",
-                
                 event_type=EventType.LOGIN_ATTEMPT,
                 status=Status.SUCCESS,
                 user_agent=request.headers.get('User-Agent'),
-                user_role=UserRole.ADMIN if user.role == 'admin'    # ← Map your role to constants
-                          else UserRole.STANDARD_USER,
-                auth_protocol=AuthProtocol.FORM_BASED,              # ← Username/password form login
+                user_role=UserRole.ADMIN if user.role == 'admin' else UserRole.STANDARD_USER,
+                auth_protocol=AuthProtocol.FORM_BASED,
                 detail=Detail.USER_INITIATED,
             )
             SecurityLogging.fire_and_forget(future, EventType.LOGIN_ATTEMPT)
@@ -358,7 +356,7 @@ Run your application in development mode (with `test_mode=True`) and trigger a l
 
 ```json
 {
-  "timestamp": "2024-10-31T20:15:30.123456+00:00",
+  "timestamp": "2025-12-13T04:33:12.100224+00:00",
   "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
@@ -370,14 +368,18 @@ Run your application in development mode (with `test_mode=True`) and trigger a l
   "cloud_env_unique_id": "123456789012",
   "cloud_env_name": "production",
   "service_account_id": "ecs-task-role",
-  "source_ip_address": "",
-  "cloud_service_api_type": "",
+  "source_ip_address": "10.0.0.1",
   "user_agent": "Mozilla/5.0...",
   "user_role": "role.classification.admin",
+  "auth_protocol": "auth.protocol.form_based",
   "detail": "detail.trigger.user_initiated",
-  "device_id": ""
+  "event_uuid": "1ade00c0-3dde-4d1f-b39e-eea13a472dd2",
+  "caller_function": "login",
+  "caller_file": "auth_routes.py"
 }
 ```
+
+**Note:** Fields like `event_uuid`, `caller_function`, and `caller_file` are automatically generated.
 
 **🎉 Congratulations!** You've sent your first security log. The infrastructure is working. Now, let's move on to instrumenting your entire application.
 
