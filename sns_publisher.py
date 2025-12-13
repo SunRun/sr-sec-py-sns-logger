@@ -435,24 +435,11 @@ class SNSPublisher:
                 message = json.dumps(message_data, indent=2)
 
                 if self.test_mode:
-                    # Calculate size before any logging to avoid sensitive data in output
-                    msg_size = self._get_message_size(message)
-                    total = message_data.get('total_parts', 1)
-                    part = message_data.get('part_number', 1)
-                    
-                    print("🧪 TEST MODE - Security log captured")
-                    print(f"📦 Message size: {msg_size} bytes")
-                    if total > 1:
-                        print(f"📦 Batch: part {part} of {total}")
-                    print("=" * 60)
-                    
+                    # Test mode: capture message without logging sensitive data
                     results.append({
                         "status": "success",
                         "test_mode": True,
-                        "message_size": msg_size,
-                        "message_content": message,
-                        "part_number": part,
-                        "total_parts": total
+                        "message_content": message
                     })
                     continue
                 
