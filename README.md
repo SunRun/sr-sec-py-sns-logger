@@ -563,6 +563,7 @@ SecurityLogging.init_security_logging(
 # result = SecurityLogging.log_user_login(...)
 
 # NON-BLOCKING approach (RECOMMENDED):
+# Note: Environment fields (cloud_env_type, service_name, etc.) already set in init_security_logging()
 with ThreadPoolExecutor() as executor:
     future = executor.submit(
         SecurityLogging.log_user_login,
@@ -570,13 +571,8 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="user@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-123",
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="web-app",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="production",
-        service_account_id="sa-logger@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0",
-        user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants: https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/security_log_fields.py#L203
+        user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants
         auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,  # Username/password, OAuth2, SAML, etc.
         status=SecurityLogging.Status.SUCCESS,
         detail="First time login from new device"
@@ -653,6 +649,7 @@ def handle_user_login(user_email, session_id, user_agent):
     # Your application logic here...
     
     # Log security event (non-blocking)
+    # Note: Environment fields already set in init_security_logging()
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             SecurityLogging.log_user_login,
@@ -660,11 +657,6 @@ def handle_user_login(user_email, session_id, user_agent):
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
-            cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-            service_name="auth-service",
-            cloud_env_unique_id="123456789012",
-            cloud_env_name="production",
-            service_account_id="lambda-execution-role",
             user_agent=user_agent,
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
@@ -809,16 +801,14 @@ The library provides 13 security logging functions covering:
 ### Function Signature Pattern
 All functions follow this pattern:
 ```python
+# Fields set ONCE in init_security_logging() - auto-included in all logs:
+# cloud_env_type, cloud_env_unique_id, cloud_env_name, service_account_id, service_name
+
 def log_function_name(
-    # Base log parameters (required for all functions)
+    # Per-call parameters (required for all functions)
     actor_identifier="",
     actor_type="", 
     session_id="",
-    cloud_env_type="",
-    service_name="",
-    cloud_env_unique_id="",
-    cloud_env_name="",
-    service_account_id="",
     # Event-specific parameters (vary by function)
     # Optional parameters
     source_ip_address="",
@@ -837,11 +827,6 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="alice@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-xyz789",
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="user-management-api",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="prod-us-east-1",
-        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=SecurityLogging.UserRole.ADMIN,
         auth_protocol=SecurityLogging.AuthProtocol.OAUTH2_JWT,
@@ -863,11 +848,6 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="alice@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-mfa-flow-123",  # Same session_id for linked events
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="user-management-api",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="prod-us-east-1",
-        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=SecurityLogging.UserRole.ADMIN,
         auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
@@ -884,11 +864,6 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="alice@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-mfa-flow-123",  # SAME session_id = linked to login above
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="user-management-api",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="prod-us-east-1",
-        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
         user_role=SecurityLogging.UserRole.ADMIN,
         mfa_type=SecurityLogging.MfaType.TOTP,
@@ -910,11 +885,6 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="api_client_123",
         actor_type=SecurityLogging.ActorType.SERVICE_PARTNER,
         session_id="session-api-456",
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="api-gateway",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="prod-us-east-1",
-        service_account_id="sa-api@project.iam.gserviceaccount.com",
         auth_protocol=SecurityLogging.AuthProtocol.API_KEY,
         endpoint_path="/api/v1/customers",
         http_method=SecurityLogging.HttpMethod.GET,
@@ -934,11 +904,6 @@ with ThreadPoolExecutor() as executor:
         actor_identifier="admin@company.com",
         actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
         session_id="session-admin-perm",
-        cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-        service_name="user-management-api",
-        cloud_env_unique_id="123456789012",
-        cloud_env_name="prod-us-east-1",
-        service_account_id="sa-user-mgmt@project.iam.gserviceaccount.com",
         target_user_identifier="newuser@company.com",
         object_changed="Role",
         previous_value="customer_support",
@@ -969,19 +934,19 @@ from sr_sec_py_sns_logger import (
 
 ### Auto-Extracted Fields
 
-| Field | Source | Notes |
-|-------|--------|-------|
-| `actor_identifier` | `session['user']['email']` | From auth session dict |
-| `user_agent` | `request_headers['user-agent']` | Browser/client user agent |
-| `source_ip_address` | `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` | Client IP from proxy headers |
-| `endpoint_path` | `request_path` parameter | Request path |
-| `http_method` | `request_method` parameter | GET, POST, etc. |
-| `session_id` | Prioritized: `session['id']` → `session_token` → `jti` → `email+expires` hash | Stable throughout user session |
-| `cloud_env_type` | `CLOUD_ENV_TYPE`, `NEXT_PUBLIC_ENVIRONMENT_NAME`, `NODE_ENV` | Auto-mapped to standardized values |
-| `cloud_env_name` | `CLOUD_ENV_NAME`, `NEXT_PUBLIC_ENVIRONMENT_NAME` | Human-readable environment name |
-| `cloud_env_unique_id` | `AWS_ACCOUNT_ID`, ARN parsing | AWS Account ID |
-| `service_name` | `SERVICE_NAME` env var | Application/service name |
-| `service_account_id` | `SERVICE_ACCOUNT_ID`, `AWS_EXECUTION_ROLE_ARN` | IAM role/user ARN |
+| Field | Source (Priority Order) | Notes |
+|-------|-------------------------|-------|
+| `actor_identifier` | `session['email']` → `session['user']['email']` → `session['attributes']['email']` (Cognito) | From auth session dict |
+| `user_agent` | `request.headers['user-agent']` | Works with Flask, FastAPI, Lambda events |
+| `source_ip_address` | `x-forwarded-for` → `x-real-ip` → `cf-connecting-ip` → `remote_addr` | Client IP from proxy headers |
+| `endpoint_path` | Lambda `rawPath`/`path`, Flask `request.path`, FastAPI `request.url.path` | Request path |
+| `http_method` | Lambda `httpMethod`, Flask/FastAPI `request.method` | GET, POST, etc. |
+| `session_id` | `session['id']` → `session['session_id']` → `session_token` (hashed) → `jti` (hashed) → `email+expires` (hashed) | Stable throughout user session |
+| `cloud_env_type` | `CLOUD_ENV_TYPE` → `NEXT_PUBLIC_ENVIRONMENT_NAME` → `ENVIRONMENT`/`ENV` → `NODE_ENV` → Lambda function name pattern | Auto-mapped to `prod`/`stage`/`dev`/`test` |
+| `cloud_env_name` | `CLOUD_ENV_NAME` → `NEXT_PUBLIC_ENVIRONMENT_NAME` → `ENVIRONMENT`/`ENV` → `NODE_ENV` | Human-readable name (formatted) |
+| `cloud_env_unique_id` | `CLOUD_ENV_UNIQUE_ID` → `AWS_ACCOUNT_ID` → ARN parsing from `AWS_EXECUTION_ROLE_ARN`, `AWS_LAMBDA_FUNCTION_ARN` | AWS Account ID (12-digit) |
+| `service_name` | `SERVICE_NAME` → `NEXT_PUBLIC_APP_NAME` → `AWS_LAMBDA_FUNCTION_NAME` (cleaned) | Application/service name |
+| `service_account_id` | `SERVICE_ACCOUNT_ID` → `AWS_EXECUTION_ROLE_ARN` → `AWS_ROLE_ARN` → `ROLE_ARN` → IAM user pattern from `AWS_ACCESS_KEY_ID` | IAM role/user ARN |
 
 **Note:** If you set `cloud_env_type`, `cloud_env_unique_id`, `cloud_env_name`, `service_account_id`, or `service_name` during `init_security_logging()`, those values take precedence and are automatically included in all logs.
 
@@ -1230,11 +1195,6 @@ def handle_user_login(user_email, session_id):
             actor_identifier=user_email,
             actor_type=SecurityLogging.ActorType.HUMAN_INTERNAL,
             session_id=session_id,
-            cloud_env_type=SecurityLogging.CloudEnvType.PROD,
-            service_name="auth-service",
-            cloud_env_unique_id="123456789012",
-            cloud_env_name="production",
-            service_account_id="lambda-execution-role",
             user_agent="Mozilla/5.0...",
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
@@ -1564,10 +1524,11 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 #### User Login Attempt (Success)
 ```json
 {
-  "timestamp": "2025-09-09T23:13:16.691207+00:00",
+  "timestamp": "2025-12-13T04:33:12.100224+00:00",
   "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.success",
+  "event_uuid": "1ade00c0-3dde-4d1f-b39e-eea13a472dd2",
   "actor_identifier": "alice@company.com",
   "actor_type": "actor.human.internal",
   "session_id": "session-xyz789",
@@ -1580,18 +1541,22 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "cloud_service_api_type": "aws_lambda",
   "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
   "user_role": "role.classification.admin",
-  "detail": "First time login from new device",
-  "device_id": "device-123"
+  "auth_protocol": "auth.protocol.oauth2.jwt",
+  "detail": "detail.trigger.user_initiated",
+  "device_id": "device-123",
+  "caller_function": "login",
+  "caller_file": "auth_routes.py"
 }
 ```
 
 #### User Login Attempt (Failure)
 ```json
 {
-  "timestamp": "2025-09-09T23:13:16.691761+00:00",
+  "timestamp": "2025-12-13T04:33:12.100224+00:00",
   "event_type": "login_attempt",
   "log_category": "authn_n_session",
   "status": "status.general.failure",
+  "event_uuid": "2bce00c0-4dde-5d1f-c39e-ffa14b572ee3",
   "actor_identifier": "attacker@external.com",
   "actor_type": "actor.human.customer",
   "session_id": "session-failed-123",
@@ -1604,18 +1569,22 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "cloud_service_api_type": "aws_lambda",
   "user_agent": "curl/7.68.0",
   "user_role": "role.classification.customer_user",
+  "auth_protocol": "auth.protocol.form_based",
   "detail": "detail.auth.invalid_credentials",
-  "device_id": ""
+  "device_id": "",
+  "caller_function": "login",
+  "caller_file": "auth_routes.py"
 }
 ```
 
 #### API Request Success
 ```json
 {
-  "timestamp": "2025-09-09T19:39:11.728000+00:00",
+  "timestamp": "2025-12-13T04:33:12.100224+00:00",
   "event_type": "api_request_processed",
   "log_category": "api_endpoint_access",
   "status": "status.general.success",
+  "event_uuid": "3cdf00c0-5dee-6e2g-d49f-gga25c683ff4",
   "actor_identifier": "api-client-xyz",
   "actor_type": "actor.service.internal",
   "session_id": "api-session-789",
@@ -1630,7 +1599,9 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
   "endpoint_path": "/api/v1/users/profile",
   "http_method": "http.method.GET",
   "endpoint_sensitivity": "sensitivity.level.confidential",
-  "detail": "Successful API call"
+  "detail": "detail.not_applicable",
+  "caller_function": "get_profile",
+  "caller_file": "api_handlers.py"
 }
 ```
 
