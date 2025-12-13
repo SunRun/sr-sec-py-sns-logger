@@ -306,7 +306,6 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
     2. Session token hash - stable for database sessions
     3. JWT ID (jti claim) - some JWT configs include this
     4. Email + expires hash - stable for session lifetime, changes on refresh/expiry
-    5. Email only - fallback, stable per-user (not per-session)
     
     Args:
         session: The auth session dict
@@ -346,11 +345,6 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
             combined = f"{email}:{expires}"
             hash_val = hashlib.sha256(combined.encode()).hexdigest()[:16]
             return f"sess_{hash_val}"
-        
-        # Fallback to email-based stable ID (per-user, not per-session)
-        if email:
-            hash_val = hashlib.sha256(email.encode()).hexdigest()[:16]
-            return f"user_{hash_val}"
         
         return None
     except Exception:
