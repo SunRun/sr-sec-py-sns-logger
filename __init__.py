@@ -108,7 +108,7 @@ from .context_helpers import (
     REQUIRED_CONTEXT_FIELDS,
 )
 
-__version__ = "1.2.0"
+__version__ = "2.0.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 

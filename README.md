@@ -130,9 +130,17 @@ print('✅ Security logging initialized.')
 
 **Production Configuration:**
 ```python
-# In production, simply call without parameters
-SecurityLogging.init_security_logging()
+# In production with environment config (recommended)
+SecurityLogging.init_security_logging(
+    cloud_env_type=SecurityLogging.CloudEnvType.PROD,
+    cloud_env_unique_id=os.environ.get('AWS_ACCOUNT_ID'),
+    cloud_env_name='production',
+    service_account_id=os.environ.get('AWS_EXECUTION_ROLE_ARN'),
+    service_name='my-application',
+)
 ```
+
+**Benefit**: Once these fields are set during initialization, you don't need to pass them with every log call - they're automatically included!
 
 **Multi-Region Failover Configuration (Optional but Recommended):**
 
@@ -430,6 +438,32 @@ Implementing this framework requires more than just copying code. As an engineer
 - Skipping required fields for specific event types
 - Creating custom detail values instead of using standardized `Detail` constants
 - Not importing the constants properly from `security_log_fields.py`
+
+#### Data Sensitivity Levels
+
+When logging record access events, you must specify the sensitivity level of the data being accessed. Use this guide to select the appropriate level:
+
+| Level | Constant | When to Use | Examples |
+|-------|----------|-------------|----------|
+| **PUBLIC** | `DataSensitivityLevel.PUBLIC` | Data that can be publicly shared | Product catalogs, marketing content, public APIs, help docs |
+| **NON_PUBLIC** | `DataSensitivityLevel.NON_PUBLIC` | Internal business data, not customer-specific | Internal reports, aggregated metrics, config settings, team directories |
+| **CONFIDENTIAL** | `DataSensitivityLevel.CONFIDENTIAL` | Customer/business data that shouldn't leak | Customer records, agreements, contracts, contact info, pricing |
+| **RESTRICTED** | `DataSensitivityLevel.RESTRICTED` | Highly sensitive - PII, credentials, financial | SSN, bank accounts, passwords, API keys, health data |
+
+**Decision Guide:**
+```
+Is this data publicly available (website, public API)?
+  → YES: PUBLIC
+  → NO: ↓
+
+Does this data belong to a specific customer or contain PII?
+  → YES: Is it highly sensitive (SSN, financial, credentials, health)?
+         → YES: RESTRICTED
+         → NO: CONFIDENTIAL
+  → NO: NON_PUBLIC
+```
+
+The same levels apply to `EndpointSensitivity` for API endpoint classification.
 
 ### Request SNS Permissions
 
@@ -940,12 +974,14 @@ from sr_sec_py_sns_logger import (
 | `source_ip_address` | `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` | Client IP from proxy headers |
 | `endpoint_path` | `request_path` parameter | Request path |
 | `http_method` | `request_method` parameter | GET, POST, etc. |
-| `session_id` | SHA256 hash of `email + expires` | Consistent per-session tracking |
+| `session_id` | Prioritized: `session['id']` → `session_token` → `jti` → `email+expires` hash | Stable throughout user session |
 | `cloud_env_type` | `CLOUD_ENV_TYPE`, `NEXT_PUBLIC_ENVIRONMENT_NAME`, `NODE_ENV` | Auto-mapped to standardized values |
 | `cloud_env_name` | `CLOUD_ENV_NAME`, `NEXT_PUBLIC_ENVIRONMENT_NAME` | Human-readable environment name |
 | `cloud_env_unique_id` | `AWS_ACCOUNT_ID`, ARN parsing | AWS Account ID |
 | `service_name` | `SERVICE_NAME` env var | Application/service name |
 | `service_account_id` | `SERVICE_ACCOUNT_ID`, `AWS_EXECUTION_ROLE_ARN` | IAM role/user ARN |
+
+**Note:** If you set `cloud_env_type`, `cloud_env_unique_id`, `cloud_env_name`, `service_account_id`, or `service_name` during `init_security_logging()`, those values take precedence and are automatically included in all logs.
 
 ### Fields Requiring Manual Input
 
