@@ -934,19 +934,19 @@ from sr_sec_py_sns_logger import (
 
 ### Auto-Extracted Fields
 
-| Field | Source | Notes |
-|-------|--------|-------|
-| `actor_identifier` | `session['user']['email']` | From auth session dict |
-| `user_agent` | `request_headers['user-agent']` | Browser/client user agent |
-| `source_ip_address` | `x-forwarded-for`, `x-real-ip`, `cf-connecting-ip` | Client IP from proxy headers |
-| `endpoint_path` | `request_path` parameter | Request path |
-| `http_method` | `request_method` parameter | GET, POST, etc. |
-| `session_id` | Prioritized: `session['id']` → `session_token` → `jti` → `email+expires` hash | Stable throughout user session |
-| `cloud_env_type` | `CLOUD_ENV_TYPE`, `NEXT_PUBLIC_ENVIRONMENT_NAME`, `NODE_ENV` | Auto-mapped to standardized values |
-| `cloud_env_name` | `CLOUD_ENV_NAME`, `NEXT_PUBLIC_ENVIRONMENT_NAME` | Human-readable environment name |
-| `cloud_env_unique_id` | `AWS_ACCOUNT_ID`, ARN parsing | AWS Account ID |
-| `service_name` | `SERVICE_NAME` env var | Application/service name |
-| `service_account_id` | `SERVICE_ACCOUNT_ID`, `AWS_EXECUTION_ROLE_ARN` | IAM role/user ARN |
+| Field | Source (Priority Order) | Notes |
+|-------|-------------------------|-------|
+| `actor_identifier` | `session['email']` → `session['user']['email']` → `session['attributes']['email']` (Cognito) | From auth session dict |
+| `user_agent` | `request.headers['user-agent']` | Works with Flask, FastAPI, Lambda events |
+| `source_ip_address` | `x-forwarded-for` → `x-real-ip` → `cf-connecting-ip` → `remote_addr` | Client IP from proxy headers |
+| `endpoint_path` | Lambda `rawPath`/`path`, Flask `request.path`, FastAPI `request.url.path` | Request path |
+| `http_method` | Lambda `httpMethod`, Flask/FastAPI `request.method` | GET, POST, etc. |
+| `session_id` | `session['id']` → `session['session_id']` → `session_token` (hashed) → `jti` (hashed) → `email+expires` (hashed) | Stable throughout user session |
+| `cloud_env_type` | `CLOUD_ENV_TYPE` → `NEXT_PUBLIC_ENVIRONMENT_NAME` → `ENVIRONMENT`/`ENV` → `NODE_ENV` → Lambda function name pattern | Auto-mapped to `prod`/`stage`/`dev`/`test` |
+| `cloud_env_name` | `CLOUD_ENV_NAME` → `NEXT_PUBLIC_ENVIRONMENT_NAME` → `ENVIRONMENT`/`ENV` → `NODE_ENV` | Human-readable name (formatted) |
+| `cloud_env_unique_id` | `CLOUD_ENV_UNIQUE_ID` → `AWS_ACCOUNT_ID` → ARN parsing from `AWS_EXECUTION_ROLE_ARN`, `AWS_LAMBDA_FUNCTION_ARN` | AWS Account ID (12-digit) |
+| `service_name` | `SERVICE_NAME` → `NEXT_PUBLIC_APP_NAME` → `AWS_LAMBDA_FUNCTION_NAME` (cleaned) | Application/service name |
+| `service_account_id` | `SERVICE_ACCOUNT_ID` → `AWS_EXECUTION_ROLE_ARN` → `AWS_ROLE_ARN` → `ROLE_ARN` → IAM user pattern from `AWS_ACCESS_KEY_ID` | IAM role/user ARN |
 
 **Note:** If you set `cloud_env_type`, `cloud_env_unique_id`, `cloud_env_name`, `service_account_id`, or `service_name` during `init_security_logging()`, those values take precedence and are automatically included in all logs.
 
