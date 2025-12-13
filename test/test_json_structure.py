@@ -75,7 +75,7 @@ def test_json_structure_preservation():
             print(f"❌ Failed to parse JSON: {e}")
             return False
     else:
-        print(f"❌ Log publishing failed: {result}")
+        print(f"❌ Log publishing failed: status={result.get('status')}")
         return False
 
 def test_fields_accessed_array():
@@ -120,7 +120,7 @@ def test_fields_accessed_array():
             print(f"❌ Failed to parse JSON: {e}")
             return False
     else:
-        print(f"❌ Log publishing failed: {result}")
+        print(f"❌ Log publishing failed: status={result.get('status')}")
         return False
 
 def test_malicious_array_sanitization():
@@ -186,7 +186,7 @@ def test_malicious_array_sanitization():
             print(f"❌ Failed to parse JSON: {e}")
             return False
     else:
-        print(f"❌ Log publishing failed: {result}")
+        print(f"❌ Log publishing failed: status={result.get('status')}")
         return False
 
 def main():
