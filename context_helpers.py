@@ -296,52 +296,66 @@ def extract_actor_identifier(session: Optional[Dict[str, Any]]) -> Optional[str]
 
 def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
     """
-    Generate a session ID from auth session data.
+    Extract a stable session ID from the auth session.
     
-    Creates a deterministic session ID by hashing:
-    - Session token (if available)
-    - Or: user email + session expiry
+    The session ID should remain CONSTANT for the entire login session.
+    It should only change when the user logs out and logs back in.
+    
+    Priority order:
+    1. Explicit session ID (session['id'] or session['session_id'])
+    2. Session token hash - stable for database sessions
+    3. JWT ID (jti claim) - some JWT configs include this
+    4. User ID + email hash - stable per-user (not per-session, but consistent)
+    
+    Note: For JWT-based sessions without a jti, we cannot distinguish
+    between different login sessions for the same user. In this case, we use a
+    stable user-based ID. If you need true per-login session tracking, configure
+    your auth to include a jti claim or use database sessions.
     
     Args:
         session: The auth session dict
         
     Returns:
-        Generated session ID or None
+        Stable session ID or None
     """
     try:
         if not session:
             return None
         
-        # If the session has an explicit ID
-        if 'id' in session and session['id']:
+        # 1. Explicit session ID (best case - developer provided it)
+        if session.get('id'):
             return session['id']
         
-        if 'session_id' in session and session['session_id']:
+        if session.get('session_id'):
             return session['session_id']
         
-        # If there's a session token, hash it
-        token = session.get('session_token') or session.get('sessionToken') or session.get('access_token')
+        # 2. Session token (database sessions - stable for entire session)
+        token = session.get('session_token') or session.get('sessionToken')
         if token:
             hash_val = hashlib.sha256(token.encode()).hexdigest()[:16]
             return f"sess_{hash_val}"
         
-        # Generate from user + expiry
+        # 3. JWT ID claim (if auth is configured to include jti)
+        jti = session.get('jti')
+        if jti:
+            hash_val = hashlib.sha256(str(jti).encode()).hexdigest()[:16]
+            return f"jwt_{hash_val}"
+        
+        # 4. User ID (stable per-user, not per-session)
+        # This means same user = same session ID across logins
+        # But it's better than changing every 15 minutes
+        user = session.get('user', {})
+        user_id = user.get('id') if isinstance(user, dict) else None
+        
+        if user_id:
+            hash_val = hashlib.sha256(str(user_id).encode()).hexdigest()[:16]
+            return f"user_{hash_val}"
+        
+        # Fallback to email-based stable ID
         email = extract_actor_identifier(session)
-        expires = session.get('expires') or session.get('exp')
-        
-        if email and expires:
-            combined = f"{email}:{expires}"
-            hash_val = hashlib.sha256(combined.encode()).hexdigest()[:16]
-            return f"sess_{hash_val}"
-        
-        # If we have just email, create a time-based session
         if email:
-            import time
-            # Round to 15-minute windows to group related events
-            time_window = int(time.time() / (15 * 60))
-            combined = f"{email}:{time_window}"
-            hash_val = hashlib.sha256(combined.encode()).hexdigest()[:16]
-            return f"sess_{hash_val}"
+            hash_val = hashlib.sha256(email.encode()).hexdigest()[:16]
+            return f"user_{hash_val}"
         
         return None
     except Exception:
