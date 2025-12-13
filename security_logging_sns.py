@@ -63,6 +63,18 @@ _sns_publisher: Optional[SNSPublisher] = None
 # Global error handler for fire-and-forget logging
 _error_handler = None
 
+# Global environment configuration set during initialization
+# These values are automatically included in all log events
+_env_config: Dict[str, str] = {}
+
+
+def get_environment_config() -> Dict[str, str]:
+    """
+    Get the current environment configuration.
+    Used internally to merge with log events.
+    """
+    return _env_config.copy()
+
 # Common required fields for ALL security log events
 COMMON_REQUIRED_FIELDS = [
     'cloud_env_type',      # Environment: "prod", "stage", "test", "dev"
@@ -82,7 +94,13 @@ def init_security_logging(
     test_mode: bool = False,
     aws_access_key_id: str = None,
     aws_secret_access_key: str = None,
-    aws_session_token: str = None
+    aws_session_token: str = None,
+    # Environment fields (set once, used in all logs)
+    cloud_env_type: str = None,
+    cloud_env_unique_id: str = None,
+    cloud_env_name: str = None,
+    service_account_id: str = None,
+    service_name: str = None
 ):
     """
     Initialize the security logging module with optional multi-region failover.
@@ -101,27 +119,54 @@ def init_security_logging(
         aws_access_key_id: Optional AWS access key ID for IAM User authentication
         aws_secret_access_key: Optional AWS secret access key for IAM User authentication  
         aws_session_token: Optional AWS session token for temporary credentials
+        cloud_env_type: Cloud environment type (e.g., CloudEnvType.PROD). Set once, included in all logs.
+        cloud_env_unique_id: Unique environment ID (e.g., AWS Account ID). Set once, included in all logs.
+        cloud_env_name: Human-readable environment name (e.g., "production"). Set once, included in all logs.
+        service_account_id: Service account ID (e.g., IAM role ARN). Set once, included in all logs.
+        service_name: Service/application name (e.g., "cypress-ui"). Set once, included in all logs.
     
     Example:
-        >>> # Basic initialization (uses defaults or env vars)
-        >>> init_security_logging()
+        >>> # Basic initialization with environment config
+        >>> init_security_logging(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     cloud_env_unique_id="123456789012",
+        ...     cloud_env_name="production",
+        ...     service_account_id="arn:aws:iam::123456789012:role/my-role",
+        ...     service_name="my-service"
+        ... )
         
-        >>> # With explicit configuration
+        >>> # With explicit SNS configuration
         >>> init_security_logging(
         ...     topic_arn="arn:aws:sns:us-west-2:123456789012:my-topic",
         ...     failover_topic_arn="arn:aws:sns:us-east-2:123456789012:my-failover-topic",
-        ...     enable_failover=True
+        ...     enable_failover=True,
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     service_name="my-service"
         ... )
         
         >>> # Lambda best practice - initialize outside handler
         >>> # At module level:
-        >>> init_security_logging()
+        >>> init_security_logging(
+        ...     cloud_env_type=CloudEnvType.PROD,
+        ...     service_name="my-lambda"
+        ... )
         >>> 
         >>> def handler(event, context):
-        ...     # Use logging functions (reuses existing SNS client)
-        ...     log_user_login(...)
+        ...     # Use logging functions (reuses existing SNS client + env config)
+        ...     log_user_login(...)  # No need to pass cloud_env_type, service_name, etc.
     """
-    global _sns_publisher
+    global _sns_publisher, _env_config
+    
+    # Store environment configuration (automatically included in all logs)
+    _env_config = {
+        'cloud_env_type': cloud_env_type,
+        'cloud_env_unique_id': cloud_env_unique_id,
+        'cloud_env_name': cloud_env_name,
+        'service_account_id': service_account_id,
+        'service_name': service_name
+    }
+    # Remove None values
+    _env_config = {k: v for k, v in _env_config.items() if v is not None}
     
     # Default production ARNs and regions
     DEFAULT_TOPIC_ARN = "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
@@ -481,6 +526,9 @@ def _create_base_log_event(
     Create a base log event with all required and optional fields.
     Automatically adds caller context (function name, file name).
     
+    Environment fields (cloud_env_type, cloud_env_unique_id, etc.) will use
+    values from init_security_logging() if not provided here.
+    
     Returns:
         Dict containing the complete log event
     """
@@ -491,7 +539,12 @@ def _create_base_log_event(
     # Get caller context
     caller_context = _get_caller_context()
     
+    # Get environment config set during initialization
+    # These values are used as defaults if not provided as arguments
+    env_config = _env_config
+    
     # Create the base event structure
+    # Arguments take precedence over init-time config
     event = {
         "timestamp": timestamp,
         "event_type": event_type,
@@ -500,11 +553,12 @@ def _create_base_log_event(
         "actor_identifier": actor_identifier,
         "actor_type": actor_type,
         "session_id": session_id,
-        "cloud_env_type": cloud_env_type,
-        "service_name": service_name,
-        "cloud_env_unique_id": cloud_env_unique_id,
-        "cloud_env_name": cloud_env_name,
-        "service_account_id": service_account_id,
+        # Environment fields: args override init-time config
+        "cloud_env_type": cloud_env_type or env_config.get('cloud_env_type', ''),
+        "service_name": service_name or env_config.get('service_name', ''),
+        "cloud_env_unique_id": cloud_env_unique_id or env_config.get('cloud_env_unique_id', ''),
+        "cloud_env_name": cloud_env_name or env_config.get('cloud_env_name', ''),
+        "service_account_id": service_account_id or env_config.get('service_account_id', ''),
         "source_ip_address": source_ip_address,
         "cloud_service_api_type": cloud_service_api_type,
         **caller_context
