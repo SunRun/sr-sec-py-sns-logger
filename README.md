@@ -812,6 +812,7 @@ def log_function_name(
     # Event-specific parameters (vary by function)
     # Optional parameters
     source_ip_address="",
+    service_component_name="",  # e.g., "auth-handler", "payment-processor"
 ):
     return {"status": "success|failure", "message": "..."}
 ```
