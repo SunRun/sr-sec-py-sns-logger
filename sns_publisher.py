@@ -436,12 +436,12 @@ class SNSPublisher:
 
                 if self.test_mode:
                     print("🧪 TEST MODE - Would send to SNS:")
-                    print(f"📍 Primary Topic: {self.topic_arn}")
+                    print(f"📍 Topic configured: Yes")
                     if self.enable_failover:
-                        print(f"📍 Failover Topic: {self.failover_topic_arn}")
+                        print(f"📍 Failover configured: Yes")
                     print(f"📦 Message size: {self._get_message_size(message)} bytes")
                     print(f"📦 Event type: {message_data.get('event_type', 'unknown')}")
-                    print(f"📦 Event UUID: {message_data.get('event_uuid')}")
+                    print(f"📦 Event UUID: [REDACTED]")
                     if message_data.get('total_parts', 1) > 1:
                         print(f"📦 Part: {message_data.get('part_number')}/{message_data.get('total_parts')}")
                     print("=" * 60)

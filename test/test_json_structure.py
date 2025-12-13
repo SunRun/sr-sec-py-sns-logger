@@ -50,25 +50,25 @@ def test_json_structure_preservation():
             
             print(f"✅ Log published successfully")
             print(f"✅ id_list type: {type(id_list)}")
-            print(f"✅ id_list value: {id_list}")
+            print(f"✅ id_list value: [REDACTED - {len(id_list) if id_list else 0} items]")
             
             # Verify it's still a list
             if isinstance(id_list, list):
                 print("✅ id_list is properly preserved as JSON array")
                 print(f"✅ Array length: {len(id_list)}")
-                print(f"✅ Array elements: {id_list}")
+                print(f"✅ Array elements: [REDACTED]")
                 
                 # Verify elements are sanitized but still strings
                 for i, item in enumerate(id_list):
                     if isinstance(item, str):
-                        print(f"✅ Element {i}: '{item}' (type: {type(item).__name__})")
+                        print(f"✅ Element {i}: [REDACTED] (type: {type(item).__name__})")
                     else:
-                        print(f"⚠️ Element {i}: {item} (type: {type(item).__name__})")
+                        print(f"⚠️ Element {i}: [REDACTED] (type: {type(item).__name__})")
                 
                 return True
             else:
                 print(f"❌ id_list is not an array! Type: {type(id_list)}")
-                print(f"❌ Value: {id_list}")
+                print(f"❌ Value: [REDACTED]")
                 return False
                 
         except json.JSONDecodeError as e:
@@ -107,7 +107,7 @@ def test_fields_accessed_array():
             
             print(f"✅ Log published successfully")
             print(f"✅ fields_accessed type: {type(fields_accessed)}")
-            print(f"✅ fields_accessed value: {fields_accessed}")
+            print(f"✅ fields_accessed value: [REDACTED - {len(fields_accessed) if fields_accessed else 0} items]")
             
             if isinstance(fields_accessed, list):
                 print("✅ fields_accessed is properly preserved as JSON array")
@@ -165,7 +165,7 @@ def test_malicious_array_sanitization():
                 for i, item in enumerate(id_list):
                     original = malicious_ids[i]
                     sanitized = item
-                    print(f"  Original: '{original}' → Sanitized: '{sanitized}'")
+                    print(f"  Element {i}: Original length={len(original)}, Sanitized length={len(sanitized)}")
                     
                     # Check that dangerous characters are removed
                     has_format_chars = any(char in sanitized for char in ['%', '{', '}'])
