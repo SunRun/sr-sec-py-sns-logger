@@ -305,12 +305,8 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
     1. Explicit session ID (session['id'] or session['session_id'])
     2. Session token hash - stable for database sessions
     3. JWT ID (jti claim) - some JWT configs include this
-    4. User ID + email hash - stable per-user (not per-session, but consistent)
-    
-    Note: For JWT-based sessions without a jti, we cannot distinguish
-    between different login sessions for the same user. In this case, we use a
-    stable user-based ID. If you need true per-login session tracking, configure
-    your auth to include a jti claim or use database sessions.
+    4. Email + expires hash - stable for session lifetime, changes on refresh/expiry
+    5. Email only - fallback, stable per-user (not per-session)
     
     Args:
         session: The auth session dict
@@ -341,18 +337,17 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
             hash_val = hashlib.sha256(str(jti).encode()).hexdigest()[:16]
             return f"jwt_{hash_val}"
         
-        # 4. User ID (stable per-user, not per-session)
-        # This means same user = same session ID across logins
-        # But it's better than changing every 15 minutes
-        user = session.get('user', {})
-        user_id = user.get('id') if isinstance(user, dict) else None
-        
-        if user_id:
-            hash_val = hashlib.sha256(str(user_id).encode()).hexdigest()[:16]
-            return f"user_{hash_val}"
-        
-        # Fallback to email-based stable ID
+        # 4. Email + Expires (stable for session lifetime)
+        # Changes when session expires/refreshes, which indicates a new session
         email = extract_actor_identifier(session)
+        expires = session.get('expires') or session.get('exp')
+        
+        if email and expires:
+            combined = f"{email}:{expires}"
+            hash_val = hashlib.sha256(combined.encode()).hexdigest()[:16]
+            return f"sess_{hash_val}"
+        
+        # Fallback to email-based stable ID (per-user, not per-session)
         if email:
             hash_val = hashlib.sha256(email.encode()).hexdigest()[:16]
             return f"user_{hash_val}"
