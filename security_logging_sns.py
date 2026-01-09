@@ -478,8 +478,7 @@ def _validate_and_collect_errors(
             missing_fields.append(field)
         elif isinstance(value, str) and value.strip() == "":
             missing_fields.append(field)
-        elif isinstance(value, list) and len(value) == 0:
-            missing_fields.append(field)
+        # Note: Arrays are valid even if empty (e.g., id_list with no results)
     
     if missing_fields:
         errors.append(f"Required fields missing: {', '.join(missing_fields)}")
@@ -1211,7 +1210,8 @@ def log_permission_role_change(
         }
         
         required_fields = COMMON_REQUIRED_FIELDS + [
-            'event_type', 'target_user_identifier', 'object_changed', 'previous_value', 'new_value'
+            'event_type', 'actor_identifier', 'actor_type', 'session_id',
+            'target_user_identifier', 'object_changed', 'previous_value', 'new_value'
         ]
         
         standardized_fields = [
