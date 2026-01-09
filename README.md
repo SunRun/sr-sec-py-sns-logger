@@ -203,7 +203,8 @@ If using IAM User credentials to publish to a cross-account SNS topic, the IAM U
       "Action": "sns:Publish",
       "Resource": [
         "arn:aws:sns:us-west-2:687126124183:sr-sec-logging-log-topic-dev",
-        "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod"
+        "arn:aws:sns:us-west-2:000576341507:sr-sec-logging-log-topic-prod",
+        "arn:aws:sns:us-east-2:000576341507:sr-sec-logging-log-topic-failover-prod"
       ]
     },
     {
@@ -212,11 +213,15 @@ If using IAM User credentials to publish to a cross-account SNS topic, the IAM U
       "Action": ["kms:GenerateDataKey*", "kms:Decrypt"],
       "Resource": [
         "arn:aws:kms:us-west-2:687126124183:key/*",
-        "arn:aws:kms:us-west-2:000576341507:key/*"
+        "arn:aws:kms:us-west-2:000576341507:key/*",
+        "arn:aws:kms:us-east-2:000576341507:key/*"
       ],
       "Condition": {
         "StringEquals": {
-          "kms:ViaService": "sns.us-west-2.amazonaws.com"
+          "kms:ViaService": [
+            "sns.us-west-2.amazonaws.com",
+            "sns.us-east-2.amazonaws.com"
+          ]
         }
       }
     }
