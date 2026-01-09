@@ -44,6 +44,7 @@ Example:
 """
 
 import os
+import re
 import sys
 import inspect
 import threading
@@ -183,6 +184,14 @@ def init_security_logging(
             else:
                 topic_arn = DEFAULT_TOPIC_ARN
     
+    # Helper to extract region from SNS topic ARN (arn:aws:sns:REGION:account:topic)
+    def extract_region_from_arn(arn: str) -> str:
+        match = re.match(r'^arn:aws:sns:([^:]+):', arn)
+        return match.group(1) if match else None
+    
+    # Primary region: prefer explicit > extract from ARN > env var > default
+    if region_name is None and topic_arn:
+        region_name = extract_region_from_arn(topic_arn)
     if region_name is None:
         region_name = os.environ.get("AWS_REGION")
         if not region_name:
@@ -194,6 +203,9 @@ def init_security_logging(
         if not failover_topic_arn and not test_mode:
             failover_topic_arn = DEFAULT_FAILOVER_TOPIC_ARN
     
+    # Failover region: prefer explicit > extract from ARN > env var > default
+    if failover_region is None and failover_topic_arn:
+        failover_region = extract_region_from_arn(failover_topic_arn)
     if failover_region is None:
         failover_region = os.environ.get("SECURITY_LOGS_FAILOVER_REGION", DEFAULT_FAILOVER_REGION)
     
