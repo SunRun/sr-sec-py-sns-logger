@@ -417,6 +417,7 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             Detail.IMPERSONATION_START, Detail.IMPERSONATION_STOP,
             # Customer Data Actions
             Detail.VIEW_LIST, Detail.MODIFY_CUSTOMER_DATA, Detail.EXPORT_REPORT, Detail.VIEW_RECORD, Detail.EDIT_RECORD,
+            Detail.CREATE_RECORD, Detail.DELETE_RECORD,
             # MFA Actions
             Detail.MFA_DISABLED, Detail.MFA_ENABLED, Detail.NEW_MFA_DEVICE,
             # MFA Challenge failure reasons
@@ -531,6 +532,8 @@ def _create_base_log_event(
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -539,6 +542,12 @@ def _create_base_log_event(
     
     Environment fields (cloud_env_type, cloud_env_unique_id, etc.) will use
     values from init_security_logging() if not provided here.
+    
+    Args:
+        user_role_context: Human-readable role context specific to the application.
+            Example: "VPP_ADMIN", "VPP_OPERATOR", "GRID_CONTROLLER"
+        context: Rich contextual data specific to the operation for IR investigations.
+            Example: {"program_id": "tesla_ca_sce", "dispatch_type": "emergency"}
     
     Returns:
         Dict containing the complete log event
@@ -586,6 +595,14 @@ def _create_base_log_event(
         event["span_id"] = span_id
     if parent_span_id:
         event["parent_span_id"] = parent_span_id
+    
+    # Add optional user_role_context if provided (non-empty string)
+    if user_role_context and user_role_context.strip():
+        event["user_role_context"] = user_role_context
+    
+    # Add optional context if provided (non-empty dict)
+    if context and isinstance(context, dict) and len(context) > 0:
+        event["context"] = context
     
     # Add all additional fields from kwargs
     event.update(kwargs)
