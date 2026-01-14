@@ -464,6 +464,79 @@ def _validate_standardized_field(field_name: str, field_value: str, allow_custom
     return {"valid": True}
 
 
+def _validate_context_field(context: Any) -> Dict[str, Any]:
+    """
+    Validate the context field - must be a valid JSON object (dict).
+    Provides user-friendly error messages for common mistakes.
+    
+    Args:
+        context: The context value to validate
+        
+    Returns:
+        Dict with "valid" boolean and "message" if invalid
+    """
+    import json
+    
+    # None is valid (optional field)
+    if context is None:
+        return {"valid": True}
+    
+    # If it's a string, user may have accidentally passed JSON string instead of dict
+    if isinstance(context, str):
+        # Try to parse it to give a helpful error message
+        try:
+            parsed = json.loads(context)
+            if isinstance(parsed, dict):
+                return {
+                    "valid": False,
+                    "message": "Invalid 'context' field: You passed a JSON string instead of a dict. "
+                        "Please pass the dict directly, not json.dumps(). "
+                        "Example: context={'program_id': '123'} instead of context='{\"program_id\":\"123\"}'"
+                }
+        except json.JSONDecodeError as e:
+            # Not valid JSON at all
+            return {
+                "valid": False,
+                "message": f"Invalid 'context' field: Expected a dict but received a string. "
+                    f"The string is not valid JSON: {str(e)}. "
+                    "Please pass a dict directly, e.g., context={'program_id': '123'}"
+            }
+        return {
+            "valid": False,
+            "message": "Invalid 'context' field: Expected a dict but received a string. "
+                "Please pass a dict directly, e.g., context={'program_id': '123'}"
+        }
+    
+    # Lists are not valid context
+    if isinstance(context, list):
+        return {
+            "valid": False,
+            "message": "Invalid 'context' field: Expected a dict but received a list. "
+                "Please pass a dict, e.g., context={'items': ['a', 'b']} instead of context=['a', 'b']"
+        }
+    
+    # Must be a dict
+    if not isinstance(context, dict):
+        return {
+            "valid": False,
+            "message": f"Invalid 'context' field: Expected a dict but received {type(context).__name__}. "
+                "Please pass a dict, e.g., context={'program_id': '123'}"
+        }
+    
+    # Verify all values are JSON-serializable
+    try:
+        json.dumps(context)
+    except (TypeError, ValueError) as e:
+        return {
+            "valid": False,
+            "message": f"Invalid 'context' field: The dict contains non-serializable values. "
+                f"Error: {str(e)}. "
+                "Please ensure all values in context are JSON-serializable (str, int, float, bool, list, dict, None)."
+        }
+    
+    return {"valid": True}
+
+
 def _validate_and_collect_errors(
     params: Dict[str, Any],
     required_fields: List[str],
@@ -505,6 +578,12 @@ def _validate_and_collect_errors(
             validation = _validate_standardized_field(field, value, allow_custom)
             if not validation["valid"]:
                 errors.append(validation["message"])
+    
+    # Validate context field if present
+    if 'context' in params:
+        context_validation = _validate_context_field(params['context'])
+        if not context_validation["valid"]:
+            errors.append(context_validation["message"])
     
     return errors
 
