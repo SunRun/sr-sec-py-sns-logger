@@ -417,6 +417,7 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
             Detail.IMPERSONATION_START, Detail.IMPERSONATION_STOP,
             # Customer Data Actions
             Detail.VIEW_LIST, Detail.MODIFY_CUSTOMER_DATA, Detail.EXPORT_REPORT, Detail.VIEW_RECORD, Detail.EDIT_RECORD,
+            Detail.CREATE_RECORD, Detail.DELETE_RECORD,
             # MFA Actions
             Detail.MFA_DISABLED, Detail.MFA_ENABLED, Detail.NEW_MFA_DEVICE,
             # MFA Challenge failure reasons
@@ -458,6 +459,79 @@ def _validate_standardized_field(field_name: str, field_value: str, allow_custom
         return {
             "valid": False,
             "message": f"Invalid {field_name} value '{field_value}'. Must use standardized values from security_log_fields. Valid options: {', '.join(valid_values[:5])}{'...' if len(valid_values) > 5 else ''}"
+        }
+    
+    return {"valid": True}
+
+
+def _validate_context_field(context: Any) -> Dict[str, Any]:
+    """
+    Validate the context field - must be a valid JSON object (dict).
+    Provides user-friendly error messages for common mistakes.
+    
+    Args:
+        context: The context value to validate
+        
+    Returns:
+        Dict with "valid" boolean and "message" if invalid
+    """
+    import json
+    
+    # None is valid (optional field)
+    if context is None:
+        return {"valid": True}
+    
+    # If it's a string, user may have accidentally passed JSON string instead of dict
+    if isinstance(context, str):
+        # Try to parse it to give a helpful error message
+        try:
+            parsed = json.loads(context)
+            if isinstance(parsed, dict):
+                return {
+                    "valid": False,
+                    "message": "Invalid 'context' field: You passed a JSON string instead of a dict. "
+                        "Please pass the dict directly, not json.dumps(). "
+                        "Example: context={'program_id': '123'} instead of context='{\"program_id\":\"123\"}'"
+                }
+        except json.JSONDecodeError as e:
+            # Not valid JSON at all
+            return {
+                "valid": False,
+                "message": f"Invalid 'context' field: Expected a dict but received a string. "
+                    f"The string is not valid JSON: {str(e)}. "
+                    "Please pass a dict directly, e.g., context={'program_id': '123'}"
+            }
+        return {
+            "valid": False,
+            "message": "Invalid 'context' field: Expected a dict but received a string. "
+                "Please pass a dict directly, e.g., context={'program_id': '123'}"
+        }
+    
+    # Lists are not valid context
+    if isinstance(context, list):
+        return {
+            "valid": False,
+            "message": "Invalid 'context' field: Expected a dict but received a list. "
+                "Please pass a dict, e.g., context={'items': ['a', 'b']} instead of context=['a', 'b']"
+        }
+    
+    # Must be a dict
+    if not isinstance(context, dict):
+        return {
+            "valid": False,
+            "message": f"Invalid 'context' field: Expected a dict but received {type(context).__name__}. "
+                "Please pass a dict, e.g., context={'program_id': '123'}"
+        }
+    
+    # Verify all values are JSON-serializable
+    try:
+        json.dumps(context)
+    except (TypeError, ValueError) as e:
+        return {
+            "valid": False,
+            "message": f"Invalid 'context' field: The dict contains non-serializable values. "
+                f"Error: {str(e)}. "
+                "Please ensure all values in context are JSON-serializable (str, int, float, bool, list, dict, None)."
         }
     
     return {"valid": True}
@@ -505,6 +579,12 @@ def _validate_and_collect_errors(
             if not validation["valid"]:
                 errors.append(validation["message"])
     
+    # Validate context field if present
+    if 'context' in params:
+        context_validation = _validate_context_field(params['context'])
+        if not context_validation["valid"]:
+            errors.append(context_validation["message"])
+    
     return errors
 
 
@@ -531,6 +611,8 @@ def _create_base_log_event(
     trace_id: str = "",
     span_id: str = "",
     parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
     **kwargs
 ) -> Dict[str, Any]:
     """
@@ -539,6 +621,12 @@ def _create_base_log_event(
     
     Environment fields (cloud_env_type, cloud_env_unique_id, etc.) will use
     values from init_security_logging() if not provided here.
+    
+    Args:
+        user_role_context: Human-readable role context specific to the application.
+            Example: "VPP_ADMIN", "VPP_OPERATOR", "GRID_CONTROLLER"
+        context: Rich contextual data specific to the operation for IR investigations.
+            Example: {"program_id": "tesla_ca_sce", "dispatch_type": "emergency"}
     
     Returns:
         Dict containing the complete log event
@@ -586,6 +674,14 @@ def _create_base_log_event(
         event["span_id"] = span_id
     if parent_span_id:
         event["parent_span_id"] = parent_span_id
+    
+    # Add optional user_role_context if provided (non-empty string)
+    if user_role_context and user_role_context.strip():
+        event["user_role_context"] = user_role_context
+    
+    # Add optional context if provided (non-empty dict)
+    if context and isinstance(context, dict) and len(context) > 0:
+        event["context"] = context
     
     # Add all additional fields from kwargs
     event.update(kwargs)

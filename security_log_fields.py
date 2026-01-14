@@ -381,6 +381,12 @@ class Detail:
     EDIT_RECORD = "detail.action.edit_record"
     """Editing a record. Example: "detail.action.edit_record" """
     
+    CREATE_RECORD = "detail.action.create_record"
+    """Creating a new record. Example: "detail.action.create_record" """
+    
+    DELETE_RECORD = "detail.action.delete_record"
+    """Deleting a record. Example: "detail.action.delete_record" """
+    
     # MFA Actions (for mfa_status_change events)
     MFA_DISABLED = "detail.action.mfa_disabled"
     """MFA disabled. Example: "detail.action.mfa_disabled" """
