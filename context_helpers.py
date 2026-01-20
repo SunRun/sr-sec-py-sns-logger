@@ -294,7 +294,7 @@ def extract_actor_identifier(session: Optional[Dict[str, Any]]) -> Optional[str]
         return None
 
 
-def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
+def extract_session_id(session: Optional[Dict[str, Any]]) -> str:
     """
     Extract a stable session ID from the auth session.
     
@@ -303,19 +303,19 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
     
     Priority order:
     1. Explicit session ID (session['id'] or session['session_id'])
-    2. Session token hash - stable for database sessions
-    3. JWT ID (jti claim) - some JWT configs include this
-    4. Email + expires hash - stable for session lifetime, changes on refresh/expiry
+    2. JWT ID (jti claim) - some JWT configs include this
+    3. Email + expires hash - stable for session lifetime, changes on refresh/expiry
+    4. Session token hash - stable for database sessions
     
     Args:
         session: The auth session dict
         
     Returns:
-        Stable session ID or None
+        Stable session ID or "unknown"
     """
     try:
         if not session:
-            return None
+            return 'unknown'
         
         # 1. Explicit session ID (best case - developer provided it)
         if session.get('id'):
@@ -324,19 +324,13 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
         if session.get('session_id'):
             return session['session_id']
         
-        # 2. Session token (database sessions - stable for entire session)
-        token = session.get('session_token') or session.get('sessionToken')
-        if token:
-            hash_val = hashlib.sha256(token.encode()).hexdigest()[:16]
-            return f"sess_{hash_val}"
-        
-        # 3. JWT ID claim (if auth is configured to include jti)
+        # 2. JWT ID claim (if auth is configured to include jti)
         jti = session.get('jti')
         if jti:
             hash_val = hashlib.sha256(str(jti).encode()).hexdigest()[:16]
             return f"jwt_{hash_val}"
         
-        # 4. Email + Expires (stable for session lifetime)
+        # 3. Email + Expires (stable for session lifetime)
         # Changes when session expires/refreshes, which indicates a new session
         email = extract_actor_identifier(session)
         expires = session.get('expires') or session.get('exp')
@@ -346,9 +340,15 @@ def extract_session_id(session: Optional[Dict[str, Any]]) -> Optional[str]:
             hash_val = hashlib.sha256(combined.encode()).hexdigest()[:16]
             return f"sess_{hash_val}"
         
-        return None
+        # 4. Session token (database sessions - stable for entire session)
+        token = session.get('session_token') or session.get('sessionToken')
+        if token:
+            hash_val = hashlib.sha256(token.encode()).hexdigest()[:16]
+            return f"sess_{hash_val}"
+        
+        return 'unknown'
     except Exception:
-        return None
+        return 'unknown'
 
 
 # ============================================================================
