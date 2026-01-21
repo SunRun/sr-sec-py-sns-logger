@@ -613,11 +613,13 @@ def _create_base_log_event(
     parent_span_id: str = "",
     user_role_context: str = "",
     context: Dict[str, Any] = None,
+    caller_function: str = "",
+    caller_file: str = "",
     **kwargs
 ) -> Dict[str, Any]:
     """
     Create a base log event with all required and optional fields.
-    Automatically adds caller context (function name, file name).
+    Automatically adds caller context (function name, file name) unless manually provided.
     
     Environment fields (cloud_env_type, cloud_env_unique_id, etc.) will use
     values from init_security_logging() if not provided here.
@@ -627,6 +629,10 @@ def _create_base_log_event(
             Example: "VPP_ADMIN", "VPP_OPERATOR", "GRID_CONTROLLER"
         context: Rich contextual data specific to the operation for IR investigations.
             Example: {"program_id": "tesla_ca_sce", "dispatch_type": "emergency"}
+        caller_function: Optional manual override for caller function name.
+            If not provided, auto-extracted from stack trace.
+        caller_file: Optional manual override for caller file name.
+            If not provided, auto-extracted from stack trace.
     
     Returns:
         Dict containing the complete log event
@@ -635,8 +641,8 @@ def _create_base_log_event(
     if not timestamp:
         timestamp = datetime.now(timezone.utc).isoformat()
     
-    # Get caller context
-    caller_context = _get_caller_context()
+    # Get caller context (auto-extracted from stack trace)
+    auto_caller_context = _get_caller_context()
     
     # Get environment config set during initialization
     # These values are used as defaults if not provided as arguments
@@ -660,7 +666,9 @@ def _create_base_log_event(
         "service_account_id": service_account_id or env_config.get('service_account_id', ''),
         "source_ip_address": source_ip_address,
         "cloud_service_api_type": cloud_service_api_type,
-        **caller_context
+        # Caller context: manual values override auto-extracted
+        "caller_function": caller_function or auto_caller_context.get('caller_function', ''),
+        "caller_file": caller_file or auto_caller_context.get('caller_file', '')
     }
     
     # Add optional service_component_name if provided
