@@ -678,6 +678,9 @@ class UserRole:
     
     CUSTOMER_USER = "role.classification.customer_user"
     """Customer user. Example: "role.classification.customer_user" """
+    
+    NON_ADMIN_INTERNAL = "role.classification.non_admin_internal"
+    """Non-admin internal user. Example: "role.classification.non_admin_internal" """
 
 
 class InviteStatus:

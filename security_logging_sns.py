@@ -388,7 +388,7 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
         ],
         "user_role": [
             UserRole.ADMIN, UserRole.SALES_REP, UserRole.CUSTOMER_SUPPORT,
-            UserRole.PARTNER_ADMIN, UserRole.CUSTOMER_USER
+            UserRole.PARTNER_ADMIN, UserRole.CUSTOMER_USER, UserRole.NON_ADMIN_INTERNAL
         ],
         "invite_status": [InviteStatus.SENT, InviteStatus.ACCEPTED, InviteStatus.REVOKED, InviteStatus.EXPIRED],
         "mfa_type": [
