@@ -124,6 +124,28 @@ boto3>=1.26.0
 - ✅ No manual file copying needed
 - ✅ Works seamlessly in CI/CD pipelines
 
+### Versioning
+
+This package uses **semantic versioning** (MAJOR.MINOR.PATCH). Always pin to a specific version tag in production for reproducible builds.
+
+**Current Version:** `v2.0.3`
+
+**Available Versions:**
+- `v2.0.3` - Latest stable (adds pip package structure)
+- `@master` - Development branch (may be unstable)
+
+**Updating to a New Version:**
+1. Check available versions: Visit [GitHub Releases](https://github.com/SunRun/sr-sec-py-sns-logger/tags)
+2. Update your `requirements.txt` to the new version:
+   ```txt
+   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.4
+   ```
+3. Regenerate lock file (if using pip-tools):
+   ```bash
+   pip-compile requirements.txt
+   ```
+4. Test in dev environment before deploying to production
+
 ### GitHub Actions CI/CD Setup
 
 For pip to install from the private GitHub repository in your CI/CD pipeline, you need to configure Git authentication. Add this step to your GitHub Actions workflow **before** the build step:
@@ -1972,6 +1994,71 @@ Your application's IAM role or user needs the following permission for security 
     ]
 }
 ```
+
+---
+
+## 📦 **For Maintainers: Creating New Releases**
+
+If you maintain this package and need to create a new version release:
+
+### **Step 1: Update Version Numbers**
+
+Update the version in **three places**:
+
+1. **`__init__.py`**:
+   ```python
+   __version__ = "2.0.4"
+   ```
+
+2. **`pyproject.toml`**:
+   ```toml
+   [project]
+   version = "2.0.4"
+   ```
+
+3. **`setup.py`**:
+   ```python
+   version = "2.0.4"
+   ```
+
+### **Step 2: Create and Push Git Tag**
+
+```bash
+# Create annotated tag with release notes
+git tag -a v2.0.4 -m "Version 2.0.4 - Description of changes
+
+- Feature 1
+- Bug fix 2
+- Enhancement 3
+
+TICKET-NUMBER"
+
+# Push tag to GitHub
+git push origin v2.0.4
+```
+
+### **Step 3: Update Consuming Projects**
+
+For each project that uses this package:
+
+1. **Update `requirements.txt`**:
+   ```txt
+   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.4
+   ```
+
+2. **Regenerate lock file** (if using pip-tools):
+   ```bash
+   cd src/lambda/your-lambda
+   pip-compile requirements.txt --output-file requirements.lock
+   ```
+
+3. **Test in dev environment** before deploying to production
+
+### **Step 4: Document the Release**
+
+Update this README's "Versioning" section with:
+- New version number as "Current Version"
+- Add to "Available Versions" list with description
 
 ---
 
