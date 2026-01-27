@@ -102,13 +102,18 @@ This section's goal is to verify your setup and send your first log. We will log
 The easiest and recommended way to install this package is via pip from GitHub:
 
 ```bash
+# Install latest stable version (recommended)
+pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
+
+# Or install from master branch (latest development)
 pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
 ```
 
 Or add to your `requirements.txt`:
 
 ```
-sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
+# Recommended: Pin to specific version for reproducible builds
+sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
 boto3>=1.26.0
 ```
 
