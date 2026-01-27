@@ -119,20 +119,6 @@ boto3>=1.26.0
 - ✅ No manual file copying needed
 - ✅ Works seamlessly in CI/CD pipelines
 
-### Alternative: Install as Git Submodule (Legacy)
-
-If you prefer to use git submodules (not recommended for new projects):
-
-```bash
-# Add as submodule
-git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
-
-# Update submodule
-git submodule update --init --recursive
-```
-
-Then manually copy files or create symlinks in your source directory. **Note:** This approach requires manual management and doesn't integrate well with standard Python tooling.
-
 ### GitHub Actions CI/CD Setup
 
 For pip to install from the private GitHub repository in your CI/CD pipeline, you need to configure Git authentication. Add this step to your GitHub Actions workflow **before** the build step:
@@ -189,6 +175,20 @@ jobs:
 ```
 
 **Note:** The `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret must be available to your repository. Contact your DevOps team if you don't have access to this secret.
+
+### Alternative: Install as Git Submodule (Legacy)
+
+If you prefer to use git submodules (not recommended for new projects):
+
+```bash
+# Add as submodule
+git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
+
+# Update submodule
+git submodule update --init --recursive
+```
+
+Then manually copy files or create symlinks in your source directory. **Note:** This approach requires manual management and doesn't integrate well with standard Python tooling.
 
 ---
 
