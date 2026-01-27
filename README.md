@@ -133,6 +133,63 @@ git submodule update --init --recursive
 
 Then manually copy files or create symlinks in your source directory. **Note:** This approach requires manual management and doesn't integrate well with standard Python tooling.
 
+### GitHub Actions CI/CD Setup
+
+For pip to install from the private GitHub repository in your CI/CD pipeline, you need to configure Git authentication. Add this step to your GitHub Actions workflow **before** the build step:
+
+```yaml
+- name: Configure Git authentication for pip
+  run: |
+    git config --global url."https://x-access-token:${{ secrets.CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES }}@github.com/".insteadOf "https://github.com/"
+  shell: bash
+
+- name: Build Lambda package
+  run: |
+    cd src/lambda/your-lambda
+    python build.py
+```
+
+**How It Works:**
+1. The `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret is an organization-level GitHub token with read access to private repositories
+2. The git config command configures git to inject the token into all HTTPS GitHub URLs
+3. When pip runs `pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git`, git automatically uses the token to authenticate
+4. No code changes needed - authentication is transparent
+
+**Example Workflow:**
+
+```yaml
+name: Build Lambda
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # ⚠️ REQUIRED: Configure git authentication for private repo access
+      - name: Configure Git authentication for pip
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES }}@github.com/".insteadOf "https://github.com/"
+        shell: bash
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Build
+        run: |
+          python build.py
+```
+
+**Note:** The `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret must be available to your repository. Contact your DevOps team if you don't have access to this secret.
+
 ---
 
 ## Step 2: Initialize the Logger
@@ -1370,16 +1427,16 @@ Your monitoring should detect these failure types:
 
 **⚠️ Important: Secret Access Request Required**
 
-Before setting up GitHub Actions, you must request access to the organization secret:
+Before setting up GitHub Actions, you must ensure your repository has access to the organization secret:
 
-1. **Request Secret Access**: Post a message in the `#software-infrastructure-support` Slack channel requesting access to the `SR_SECURITY_GITHUB_ACTION_MODULES` secret for your repository
-2. **Include Repository Details**: Provide your repository name and explain that you need this secret to access the security logging submodule
+1. **Request Secret Access**: Post a message in the `#software-infrastructure-support` Slack channel requesting access to the `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret for your repository
+2. **Include Repository Details**: Provide your repository name and explain that you need this secret to install the security logging package from GitHub via pip
 3. **Wait for Approval**: The infrastructure team will grant your repository access to this organization-level secret
 
 **📍 Note About SNS Topic Region:**
 The security logging SNS topic is located in **us-west-2**, regardless of where your application runs. AWS SNS supports cross-region publishing, so your application can publish to the us-west-2 topic even if it runs in a different region (e.g., Shanghai/ap-southeast-1). No special configuration needed - just ensure your IAM role has permissions to publish to the us-west-2 SNS topic.
 
-For Python repositories that use this library as a submodule, add this workflow to `.github/workflows/main.yml`:
+For Python repositories that install this library via pip, add this workflow to `.github/workflows/main.yml`:
 
 ```yaml
 name: Security Logger CI/CD
@@ -1402,14 +1459,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.1.7
-        with:
-          submodules: recursive
-          token: ${{ secrets.SR_SECURITY_GITHUB_ACTION_MODULES }}
 
       - name: Set up Python
         uses: actions/setup-python@v5.1.0
         with:
           python-version: '3.12'
+
+      # ⚠️ REQUIRED: Configure git authentication for pip to install from private GitHub repos
+      - name: Configure Git authentication for pip
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES }}@github.com/".insteadOf "https://github.com/"
+        shell: bash
 
       # Generate a cache key based on the hash of dependencies and source files
       - name: Generate cache key
@@ -1432,7 +1492,8 @@ jobs:
       - name: Build Lambda package
         if: steps.cache-lambda.outputs.cache-hit != 'true'
         run: |
-          echo "Cache miss. Building Lambda package using Docker..."
+          echo "Cache miss. Building Lambda package..."
+          echo "pip will install sr-sec-py-sns-logger from GitHub using authenticated git"
           cd src/lambda/uar-perm-ingest
           python build.py
         shell: bash
@@ -1471,11 +1532,19 @@ jobs:
 ```
 
 **Important Notes:**
-- **Secret Access Required**: Request `SR_SECURITY_GITHUB_ACTION_MODULES` secret access via `#software-infrastructure-support` Slack channel before setup
-- Uses `SR_SECURITY_GITHUB_ACTION_MODULES` secret for submodule access
-- Includes submodule checkout with `submodules: recursive`
+- **Secret Access Required**: Request `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret access via `#software-infrastructure-support` Slack channel before setup
+- Uses `CEE_USER_TOKEN_GITHUB_ACTIONS_PACKAGES` secret for pip to authenticate git clones of private repos
+- The git config step is **required** before any pip install commands that reference GitHub URLs
+- Pip automatically installs the package and its dependencies (boto3) from the GitHub repository
 - Caches Lambda builds for faster CI/CD
 - Supports both dev and prod deployments via reusable workflows
+
+**Key Differences from Submodule Approach:**
+- ✅ No `submodules: recursive` checkout needed
+- ✅ No manual file copying or symlink creation
+- ✅ Package installed via standard pip workflow
+- ✅ Dependencies automatically resolved
+- ✅ Simpler cache key (no submodule SHA tracking)
 
 ---
 
