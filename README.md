@@ -97,19 +97,41 @@ This section's goal is to verify your setup and send your first log. We will log
 
 ## Step 1: Install and Setup
 
-Install the package using pip:
+### Recommended: Install via Pip from GitHub
+
+The easiest and recommended way to install this package is via pip from GitHub:
 
 ```bash
-pip install sr-sec-py-sns-logger
+pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
 ```
 
-### Install Dependencies in Your Application
+Or add to your `requirements.txt`:
 
-Ensure you have the AWS SDK installed:
+```
+sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
+boto3>=1.26.0
+```
+
+**Benefits:**
+- ✅ Standard Python package management
+- ✅ Automatic dependency resolution
+- ✅ Easy version updates
+- ✅ No manual file copying needed
+- ✅ Works seamlessly in CI/CD pipelines
+
+### Alternative: Install as Git Submodule (Legacy)
+
+If you prefer to use git submodules (not recommended for new projects):
 
 ```bash
-pip install boto3
+# Add as submodule
+git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
+
+# Update submodule
+git submodule update --init --recursive
 ```
+
+Then manually copy files or create symlinks in your source directory. **Note:** This approach requires manual management and doesn't integrate well with standard Python tooling.
 
 ---
 
@@ -527,26 +549,23 @@ The security logging SNS topic is located in **us-west-2**, regardless of where 
 
 ### 5-Minute Getting Started
 
-#### Step 1: Install Dependencies
+#### Step 1: Install via Pip (Recommended)
 ```bash
-pip install boto3
+pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
 ```
 
-#### Step 2: Add as Git Submodule
-```bash
-git submodule add https://github.com/SunRun/sr-sec-py-sns-logger.git
+Or add to your `requirements.txt`:
+```
+sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
+boto3>=1.26.0
 ```
 
-#### Step 3: Create Symlinks for IDE Support
-Navigate to your application source directory and create symlinks:
-
+Then install:
 ```bash
-ln -sf ../../sr-sec-py-sns-logger/security_logging_sns.py security_logging_sns.py
-ln -sf ../../sr-sec-py-sns-logger/security_log_fields.py security_log_fields.py
-ln -sf ../../sr-sec-py-sns-logger/sns_publisher.py sns_publisher.py
+pip install -r requirements.txt
 ```
 
-#### Step 4: Quick Example
+#### Step 2: Quick Example
 ```python
 import sr_sec_py_sns_logger as SecurityLogging
 from concurrent.futures import ThreadPoolExecutor
