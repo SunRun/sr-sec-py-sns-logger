@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools-scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sr-sec-py-sns-logger"
+version = "2.0.3"
+description = "Python module for structured security logging to AWS SNS"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Sunrun Security Team"}
+]
+keywords = ["security", "logging", "aws", "sns", "audit"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "boto3>=1.26.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "moto>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/SunRun/sr-sec-py-sns-logger"
+Repository = "https://github.com/SunRun/sr-sec-py-sns-logger"
+Documentation = "https://github.com/SunRun/sr-sec-py-sns-logger/blob/master/README.md"
+
+[tool.setuptools]
+packages = ["sr_sec_py_sns_logger"]
+
+[tool.setuptools.package-dir]
+sr_sec_py_sns_logger = "."
+
+[tool.setuptools.package-data]
+sr_sec_py_sns_logger = ["*.py", "README.md"]
