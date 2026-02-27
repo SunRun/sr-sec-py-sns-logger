@@ -727,7 +727,9 @@ def log_user_login(
     detail: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Logs User Login attempts (both success and failure).
@@ -823,6 +825,8 @@ def log_user_login(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             user_agent=user_agent,
             user_role=user_role,
             auth_protocol=auth_protocol,
@@ -861,7 +865,9 @@ def log_mfa_challenge(
     detail: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Logs MFA Challenge events.
@@ -951,6 +957,8 @@ def log_mfa_challenge(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             user_agent=user_agent,
             user_role=user_role,
             detail=detail,
@@ -988,7 +996,9 @@ def log_user_logout(
     detail: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Logs User Logout events.
@@ -1075,6 +1085,8 @@ def log_user_logout(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             user_agent=user_agent,
             user_role=user_role,
             detail=detail,
@@ -1115,7 +1127,9 @@ def log_record_access(
     fields_accessed: List[str] = None,
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Log record access events (single or multiple records).
@@ -1242,6 +1256,9 @@ def log_record_access(
         if fields_accessed:
             event_kwargs['fields_accessed'] = fields_accessed
         
+        event_kwargs['user_role_context'] = user_role_context
+        event_kwargs['context'] = context
+        
         event = _create_base_log_event(**event_kwargs)
         
         return _get_publisher().publish_message(event)
@@ -1274,7 +1291,9 @@ def log_permission_role_change(
     detail: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Logs Permission/Role/Group Membership Change events.
@@ -1361,6 +1380,8 @@ def log_permission_role_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_user_identifier=target_user_identifier,
             object_changed=object_changed,
             previous_value=previous_value,
@@ -1391,7 +1412,9 @@ def log_user_status_change(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Log user status changes (enabled/disabled/deleted/locked/unlocked).
@@ -1468,6 +1491,8 @@ def log_user_status_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_user_identifier=target_user_identifier,
             detail=detail,
         )
@@ -1495,7 +1520,9 @@ def log_impersonation_event(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """
     Log user impersonation start/stop events.
@@ -1572,6 +1599,8 @@ def log_impersonation_event(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_user_identifier=target_user_identifier,
             detail=detail,
         )
@@ -1601,7 +1630,9 @@ def log_user_invite_event(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log user invitation events."""
     try:
@@ -1659,6 +1690,8 @@ def log_user_invite_event(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_user_email=target_user_email,
             assigned_role=assigned_role,
             invite_status=invite_status,
@@ -1696,7 +1729,9 @@ def log_api_request(
     detail: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log API endpoint access attempts."""
     try:
@@ -1758,6 +1793,8 @@ def log_api_request(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             auth_protocol=auth_protocol,
             endpoint_path=endpoint_path,
             http_method=http_method,
@@ -1795,7 +1832,9 @@ def log_mfa_status_change(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log MFA configuration changes."""
     try:
@@ -1853,6 +1892,8 @@ def log_mfa_status_change(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_object=target_object,
             mfa_id=mfa_id,
             detail=detail,
@@ -1882,7 +1923,9 @@ def log_password_change_reset(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log password change/reset events."""
     try:
@@ -1939,6 +1982,8 @@ def log_password_change_reset(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_object=target_object,
             detail=detail,
         )
@@ -1967,7 +2012,9 @@ def log_api_key_lifecycle(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log API key management events."""
     try:
@@ -2024,6 +2071,8 @@ def log_api_key_lifecycle(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_object=target_object,
             detail=detail,
         )
@@ -2052,7 +2101,9 @@ def log_auth_mechanism_modification(
     cloud_service_api_type: str = "",
     trace_id: str = "",
     span_id: str = "",
-    parent_span_id: str = ""
+    parent_span_id: str = "",
+    user_role_context: str = "",
+    context: Dict[str, Any] = None,
 ) -> Dict[str, str]:
     """Log authentication mechanism changes."""
     try:
@@ -2109,6 +2160,8 @@ def log_auth_mechanism_modification(
             trace_id=trace_id,
             span_id=span_id,
             parent_span_id=parent_span_id,
+            user_role_context=user_role_context,
+            context=context,
             target_object=target_object,
             detail=detail,
         )
