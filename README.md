@@ -1999,12 +1999,12 @@ Your application's IAM role or user needs the following permission for security 
 
 ## API Gateway Lambda adapter
 
-`lambda_helpers` (`v2.2.0`) initializes logging for a Node-style API Gateway Lambda without a copied helper. Pass your own service name and account mapping. `awsAccountId` or `AWS_ACCOUNT_ID` overrides the mapped account. `build_lambda_context` includes the env fields because the Python `log_*` functions require them as arguments.
+`lambda_helpers` (`v2.2.0`) initializes logging for an API Gateway Lambda without a copied helper. Pass your own service name and account mapping. `awsAccountId` or `AWS_ACCOUNT_ID` overrides the mapped account. `build_lambda_context` includes the env fields because the Python `log_*` functions require them as arguments. `user_role` and `user_agent` are only accepted by login, MFA, and logout. Drop those two keys before spreading the context into the other log functions.
 
 ```python
-from lambda_helpers import init_lambda_security_logging, build_lambda_context, ignore_log_error
-from security_log_fields import CloudEnvType
-from security_logging_sns import log_api_request
+from lambda_helpers import init_lambda_security_logging, build_lambda_context, ignore_log_error, extract_failure_reason
+from security_log_fields import AuthProtocol, CloudEnvType, EventType, Status
+from security_logging_sns import log_user_login
 
 init_lambda_security_logging(
     service_name="my-service",
@@ -2014,7 +2014,13 @@ init_lambda_security_logging(
     ],
 )
 
-ignore_log_error(lambda: log_api_request(**build_lambda_context(event, identity=identity)))
+ignore_log_error(lambda: log_user_login(
+    event_type=EventType.LOGIN_ATTEMPT,
+    status=Status.FAILURE,
+    auth_protocol=AuthProtocol.OAUTH2_JWT,
+    detail=extract_failure_reason(err),
+    **build_lambda_context(event, pre_session=True),
+))
 ```
 
 ## 📦 **For Maintainers: Creating New Releases**
