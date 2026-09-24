@@ -108,7 +108,18 @@ from .context_helpers import (
     REQUIRED_CONTEXT_FIELDS,
 )
 
-__version__ = "2.1.0"
+from .lambda_helpers import (
+    init_lambda_security_logging,
+    reset_lambda_security_logging,
+    ignore_log_error,
+    extract_failure_reason,
+    extract_api_gateway_source_ip,
+    extract_api_gateway_user_agent,
+    actor_from_resolved_identity,
+    build_lambda_context,
+)
+
+__version__ = "2.2.0"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 

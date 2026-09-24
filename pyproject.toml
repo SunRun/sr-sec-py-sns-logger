@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sr-sec-py-sns-logger"
-version = "2.1.0"
+version = "2.2.0"
 description = "Python module for structured security logging to AWS SNS"
 readme = "README.md"
 requires-python = ">=3.7"
