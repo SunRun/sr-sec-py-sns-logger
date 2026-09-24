@@ -1997,6 +1997,26 @@ Your application's IAM role or user needs the following permission for security 
 
 ---
 
+## API Gateway Lambda adapter
+
+`lambda_helpers` (`v2.2.0`) initializes logging for a Node-style API Gateway Lambda without a copied helper. Pass your own service name and account mapping. `awsAccountId` or `AWS_ACCOUNT_ID` overrides the mapped account. `build_lambda_context` includes the env fields because the Python `log_*` functions require them as arguments.
+
+```python
+from lambda_helpers import init_lambda_security_logging, build_lambda_context, ignore_log_error
+from security_log_fields import CloudEnvType
+from security_logging_sns import log_api_request
+
+init_lambda_security_logging(
+    service_name="my-service",
+    default_account_id="111111111111",
+    envs=[
+        {"names": ["production", "prod"], "cloud_env_type": CloudEnvType.PROD, "cloud_env_name": "production", "account_id": "222222222222"},
+    ],
+)
+
+ignore_log_error(lambda: log_api_request(**build_lambda_context(event, identity=identity)))
+```
+
 ## 📦 **For Maintainers: Creating New Releases**
 
 If you maintain this package and need to create a new version release:

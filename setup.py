@@ -36,6 +36,7 @@ setup(
         "security_log_fields",
         "sns_publisher",
         "context_helpers",
+        "lambda_helpers",
     ],
     python_requires=">=3.7",
     install_requires=[
