@@ -359,6 +359,7 @@ def _get_valid_values_for_field(field_name: str) -> List[str]:
         "status": [Status.SUCCESS, Status.FAILURE],
         "actor_type": [
             ActorType.HUMAN_INTERNAL, ActorType.HUMAN_PARTNER, ActorType.HUMAN_CUSTOMER,
+            ActorType.HUMAN_EXTERNAL,
             ActorType.SERVICE_INTERNAL, ActorType.SERVICE_PARTNER, ActorType.SERVICE_CUSTOMER,
             ActorType.SYSTEM_SELF
         ],

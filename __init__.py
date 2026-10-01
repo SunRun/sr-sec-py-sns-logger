@@ -119,7 +119,7 @@ from .lambda_helpers import (
     build_lambda_context,
 )
 
-__version__ = "2.2.0"
+__version__ = "2.2.1"
 __author__ = "Sunrun Security Team"
 __description__ = "Python module for structured security logging to AWS SNS"
 
