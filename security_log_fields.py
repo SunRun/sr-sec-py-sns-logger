@@ -45,7 +45,7 @@ class ActorType:
     - SERVICE: An application, microservice, or automated agent acting on behalf of someone
     - SYSTEM: The application itself performing automated actions
     
-    Then specify the relationship (INTERNAL/PARTNER/CUSTOMER)
+    Then specify the relationship (INTERNAL/PARTNER/CUSTOMER/EXTERNAL)
     
     Example:
         >>> from security_log_fields import ActorType
@@ -70,6 +70,10 @@ class ActorType:
     # Sunrun customer or homeowner
     HUMAN_CUSTOMER = "actor.human.customer"
     """Sunrun customer or homeowner. Example: "actor.human.customer" """
+
+    # Human who is not a Sunrun employee. Domain is known; customer vs partner is not.
+    HUMAN_EXTERNAL = "actor.human.external"
+    """Non-employee human. Example: "actor.human.external" """
     
     # Internal Sunrun service/microservice acting on behalf of a user
     SERVICE_INTERNAL = "actor.service.internal"
