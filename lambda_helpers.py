@@ -60,6 +60,8 @@ def init_lambda_security_logging(
     env_var_names: Optional[List[str]] = None,
     region: str = "us-west-2",
     test_mode: bool = False,
+    log_to_local_stdout: bool = False,
+    local_logging: bool = False,
 ) -> None:
     """Initialize logging once per process. awsAccountId / AWS_ACCOUNT_ID override the mapped account."""
     global _initialized
@@ -79,6 +81,8 @@ def init_lambda_security_logging(
         cloud_env_name=(match or {}).get("cloud_env_name") or (raw_name or "local"),
         service_account_id="arn:aws:lambda:{0}:{1}:function:{2}".format(region, account_id, function_name),
         service_name=service_name,
+        log_to_local_stdout=log_to_local_stdout,
+        local_logging=local_logging,
     )
 
     def _on_error(error_msg: str, event_type: Optional[str] = None) -> None:

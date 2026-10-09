@@ -28,6 +28,7 @@ Example:
 """
 
 import json
+import os
 import boto3
 import time
 import uuid
@@ -149,7 +150,9 @@ class SNSPublisher:
         test_mode: bool = False,
         aws_access_key_id: Optional[str] = None,
         aws_secret_access_key: Optional[str] = None,
-        aws_session_token: Optional[str] = None
+        aws_session_token: Optional[str] = None,
+        log_to_local_stdout: bool = False,
+        local_logging: bool = False
     ):
         """
         Initialize SNS Publisher with optional failover support.
@@ -168,6 +171,11 @@ class SNSPublisher:
         self.topic_arn = topic_arn
         self.test_mode = test_mode
         self.enable_failover = enable_failover and failover_topic_arn is not None
+
+        env_local_log = os.environ.get("SR_SEC_LOG_TO_STDOUT", "").lower() in ("true", "1", "yes") or \
+                        os.environ.get("SR_SEC_LOCAL_LOGGING", "").lower() in ("true", "1", "yes") or \
+                        os.environ.get("SECURITY_LOGS_LOCAL_LOGGING", "").lower() in ("true", "1", "yes")
+        self.log_to_local_stdout = bool(log_to_local_stdout or local_logging or env_local_log)
         
         # Failover configuration
         self.failover_topic_arn = failover_topic_arn
@@ -430,8 +438,20 @@ class SNSPublisher:
 
             # Publish all messages (batched or single)
             results = []
-            
+
+            log_locally = self.log_to_local_stdout or (
+                os.environ.get("SR_SEC_LOG_TO_STDOUT", "").lower() in ("true", "1", "yes") or
+                os.environ.get("SR_SEC_LOCAL_LOGGING", "").lower() in ("true", "1", "yes") or
+                os.environ.get("SECURITY_LOGS_LOCAL_LOGGING", "").lower() in ("true", "1", "yes")
+            )
+
             for message_data in messages_to_publish:
+                if log_locally:
+                    try:
+                        print(json.dumps(message_data))
+                    except Exception:
+                        pass
+
                 message = json.dumps(message_data, indent=2)
 
                 if self.test_mode:
