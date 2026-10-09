@@ -101,7 +101,10 @@ def init_security_logging(
     cloud_env_unique_id: str = None,
     cloud_env_name: str = None,
     service_account_id: str = None,
-    service_name: str = None
+    service_name: str = None,
+    # Local compute logging (CloudWatch stdout mirroring)
+    log_to_local_stdout: bool = False,
+    local_logging: bool = False
 ):
     """
     Initialize the security logging module with optional multi-region failover.
@@ -218,7 +221,9 @@ def init_security_logging(
         test_mode=test_mode,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
-        aws_session_token=aws_session_token
+        aws_session_token=aws_session_token,
+        log_to_local_stdout=log_to_local_stdout,
+        local_logging=local_logging
     )
 
 

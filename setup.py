@@ -12,7 +12,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 # Read version from __init__.py
-version = "2.0.3"
+version = "2.3.0"
 with open("__init__.py", "r", encoding="utf-8") as f:
     for line in f:
         if line.startswith("__version__"):
