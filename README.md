@@ -13,6 +13,8 @@ A Python module for sending structured security logs to AWS SNS for centralized 
 - ⚡ **Non-Blocking**: Fire-and-forget pattern prevents application blocking
 - 📊 **Auto-Batching**: Automatically handles large record lists that exceed SNS message limits
 - 🔍 **Context Extraction**: Automatically captures function/file name for enhanced debugging
+- 📡 **Local Stdout Mirroring**: Opt-in CloudWatch stdout JSON mirroring (`log_to_local_stdout` or `SR_SEC_LOG_TO_STDOUT`)
+- ⚡ **API Gateway Lambda Adapter**: Built-in `lambda_helpers` (`init_lambda_security_logging`, `build_lambda_context`, `ignore_log_error`)
 
 ---
 
@@ -103,7 +105,7 @@ The easiest and recommended way to install this package is via pip from GitHub:
 
 ```bash
 # Install latest stable version (recommended)
-pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
+pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.0
 
 # Or install from master branch (latest development)
 pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
@@ -113,7 +115,7 @@ Or add to your `requirements.txt`:
 
 ```
 # Recommended: Pin to specific version for reproducible builds
-sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
+sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.0
 boto3>=1.26.0
 ```
 
@@ -128,17 +130,19 @@ boto3>=1.26.0
 
 This package uses **semantic versioning** (MAJOR.MINOR.PATCH). Always pin to a specific version tag in production for reproducible builds.
 
-**Current Version:** `v2.0.3`
+**Current Version:** `v2.3.0`
 
 **Available Versions:**
-- `v2.0.3` - Latest stable (adds pip package structure)
+- `v2.3.0` - Latest stable (adds `log_to_local_stdout` / `local_logging` and `SR_SEC_LOG_TO_STDOUT` for local CloudWatch stdout mirroring)
+- `v2.2.0` - API Gateway Lambda helpers (`lambda_helpers`, `init_lambda_security_logging`, `build_lambda_context`, `ignore_log_error`)
+- `v2.0.3` - Initial pip package structure
 - `@master` - Development branch (may be unstable)
 
 **Updating to a New Version:**
 1. Check available versions: Visit [GitHub Releases](https://github.com/SunRun/sr-sec-py-sns-logger/tags)
 2. Update your `requirements.txt` to the new version:
    ```txt
-   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.4
+   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.0
    ```
 3. Regenerate lock file (if using pip-tools):
    ```bash
@@ -432,7 +436,7 @@ def login():
                     event_type=EventType.LOGIN_ATTEMPT,
                     status=Status.FAILURE,
                     user_agent=request.headers.get('User-Agent'),
-                    user_role=UserRole.UNKNOWN,
+                    user_role=UserRole.NOT_AVAILABLE,
                     auth_protocol=AuthProtocol.FORM_BASED,
                     detail=Detail.INVALID_CREDENTIALS,
                 )
@@ -448,7 +452,7 @@ def login():
                 event_type=EventType.LOGIN_ATTEMPT,
                 status=Status.SUCCESS,
                 user_agent=request.headers.get('User-Agent'),
-                user_role=UserRole.ADMIN if user.role == 'admin' else UserRole.STANDARD_USER,
+                user_role=UserRole.ADMIN if user.role == 'admin' else UserRole.NON_ADMIN_INTERNAL,
                 auth_protocol=AuthProtocol.FORM_BASED,
                 detail=Detail.USER_INITIATED,
             )
@@ -636,7 +640,7 @@ The security logging SNS topic is located in **us-west-2**, regardless of where 
 #### Step 1: Install via Pip (Recommended)
 ```bash
 # Install latest stable version (recommended)
-pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
+pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.0
 
 # Or install from master branch (latest development)
 pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
@@ -645,7 +649,7 @@ pip install git+https://github.com/SunRun/sr-sec-py-sns-logger.git@master
 Or add to your `requirements.txt`:
 ```
 # Recommended: Pin to specific version
-sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.3
+sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.0
 boto3>=1.26.0
 ```
 
@@ -688,7 +692,7 @@ with ThreadPoolExecutor() as executor:
         user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants
         auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,  # Username/password, OAuth2, SAML, etc.
         status=SecurityLogging.Status.SUCCESS,
-        detail="First time login from new device"
+        detail=SecurityLogging.Detail.USER_INITIATED
     )
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
@@ -706,7 +710,7 @@ def security_error_handler(error_msg, event_type):
 SecurityLogging.set_security_logging_error_handler(security_error_handler)
 ```
 
-**🎉 That's it!** You now have non-blocking security logging with error monitoring. For complete examples of all 14 event types, see [`example_publish.py`](example_publish.py).
+**🎉 That's it!** You now have non-blocking security logging with error monitoring. For complete examples of all 13 event types, see [`example_publish.py`](example_publish.py).
 
 ---
 
@@ -774,7 +778,7 @@ def handle_user_login(user_email, session_id, user_agent):
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
-            detail="Successful login"
+            detail=SecurityLogging.Detail.USER_INITIATED
         )
         SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
@@ -946,7 +950,7 @@ with ThreadPoolExecutor() as executor:
         auth_protocol=SecurityLogging.AuthProtocol.OAUTH2_JWT,
         status=SecurityLogging.Status.SUCCESS,
         source_ip_address="192.168.1.100",
-        detail="First time login from new device"
+        detail=SecurityLogging.Detail.USER_INITIATED
     )
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 ```
@@ -1027,7 +1031,7 @@ with ThreadPoolExecutor() as executor:
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.PERMISSION_CHANGE)
 ```
 
-> **📝 Note**: For complete examples of all 14 available functions, see [`example_publish.py`](example_publish.py).
+> **📝 Note**: For complete examples of all 13 available functions, see [`example_publish.py`](example_publish.py).
 
 ---
 
@@ -1088,10 +1092,9 @@ from sr_sec_py_sns_logger import (
     log_record_access,
     fire_and_forget,
     EventType,
-    Status,
     ActorType,
-    UserRole,
-    Category,
+    DataSensitivityLevel,
+    Detail,
 )
 from concurrent.futures import ThreadPoolExecutor
 
@@ -1109,15 +1112,16 @@ def handle_request(request_headers, session, request_path, request_method):
         warn_missing_context_fields(context)
     
     # Use the context - logging function will return error if required fields missing
+    # Note: log_record_access auto-sets status=Status.SUCCESS and log_category=LogCategory.CUSTOMER_DATA_ACTIONS.
+    # It does NOT take user_role, status, or category kwargs.
     with ThreadPoolExecutor() as executor:
         future = executor.submit(
             log_record_access,
-            **context,                     # All auto-extracted fields
+            **context,                             # Auto-extracted fields (actor_identifier, session_id, endpoint_path, etc.)
             event_type=EventType.RECORD_ACCESS,
             actor_type=ActorType.HUMAN_INTERNAL,  # Manual: business logic
-            user_role=UserRole.ADMIN,              # Manual: from your auth system
-            status=Status.SUCCESS,
-            category=Category.CUSTOMER_DATA_ACTIONS,
+            data_sensitivity_level=DataSensitivityLevel.CONFIDENTIAL,
+            detail=Detail.VIEW_RECORD,
             id_list=['customer-123'],
         )
         
@@ -1313,7 +1317,7 @@ def handle_user_login(user_email, session_id):
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
-            detail="Successful login"
+            detail=SecurityLogging.Detail.USER_INITIATED
         )
         SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
@@ -1613,35 +1617,243 @@ Additional required fields based on the specific event type. The `detail` field 
 ##### Authentication & Session Events
 | Event Type | Required Fields | Optional Fields | Detail Field Usage |
 |------------|----------------|-----------------|-------------------|
-| **User Login** (`login_attempt`) | `user_agent`, `user_role`, `auth_protocol`, `detail`, `status` | `device_id` | Success (`status.general.success`): "1st time login", "login with a successful MFA"<br>Failure (`status.general.failure`): `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
-| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `detail`, `mfa_type`, `status` | `device_id` | Success (`status.general.success`): `detail.trigger.user_initiated`<br>Failure (`status.general.failure`): `detail.mfa.invalid_code`, `detail.mfa.expired_code`, `detail.mfa.device_not_enrolled`, `detail.mfa.too_many_attempts` |
-| **User Logout** (`user_logout`) | `user_agent`, `user_role`, `detail` | `device_id` | `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated` |
+| **User Login** (`login_attempt`) | `user_agent`, `user_role`, `auth_protocol`, `status`, `detail` | `device_id` | Success (`status.general.success`): `detail.trigger.user_initiated`<br>Failure (`status.general.failure`): `detail.auth.invalid_credentials`, `detail.auth.account_locked` |
+| **MFA Challenge** (`mfa_challenge`) | `user_agent`, `user_role`, `status`, `mfa_type`, `detail` | `device_id` | Success (`status.general.success`): `detail.trigger.user_initiated`<br>Failure (`status.general.failure`): `detail.mfa.invalid_code`, `detail.mfa.expired_code`, `detail.mfa.device_not_enrolled`, `detail.mfa.too_many_attempts` |
+| **User Logout** (`user_logout`) | `user_agent`, `user_role`, `status`, `detail` | `device_id` | Session termination reasons: `detail.trigger.user_initiated`, `detail.trigger.session_timeout`, `detail.trigger.admin_initiated`, `detail.trigger.concurrent_session` |
 
 ##### Authorization & Access Events
-| Event Type | Required Fields | Detail Field Usage |
-|------------|----------------|-------------------|
-| **Permission/Role/Group Change** (`permission_change`) | `target_user_identifier`, `object_changed`, `previous_value`, `new_value` | N/A |
-| **User Status Change** (`user_status_change`) | `target_user_identifier`, `detail` | `detail.trigger.admin_initiated`, `detail.trigger.system_policy_violation` |
-| **Impersonation** (`impersonation_event`) | `target_user_identifier` | N/A |
-| **User Invite** (`user_invite_event`) | `target_user_email`, `assigned_role`, `invite_status` | N/A |
+| Event Type | Required Fields | Optional Fields | Detail Field Usage |
+|------------|----------------|-----------------|-------------------|
+| **Permission/Role/Group Change** (`permission_change`) | `target_user_identifier`, `object_changed`, `previous_value`, `new_value` (`status` defaults to `Status.SUCCESS`) | `detail` | `detail.trigger.admin_initiated`, `detail.trigger.system_automated` |
+| **User Status Change** (`user_status_change`) | `target_user_identifier`, `detail` (`status` defaults to `Status.SUCCESS`) | | `detail.action.user_disabled`, `detail.action.user_enabled`, `detail.action.user_locked`, `detail.action.user_unlocked`, `detail.action.user_deleted` |
+| **Impersonation** (`impersonation_event`) | `target_user_identifier` (`status` defaults to `Status.SUCCESS`) | `detail` | `detail.action.impersonation_start`, `detail.action.impersonation_stop` |
+| **User Invite** (`user_invite_event`) | `target_user_email`, `assigned_role`, `invite_status` (`status` defaults to `Status.SUCCESS`) | `detail` | `detail.trigger.admin_initiated`, `detail.trigger.user_initiated` |
 
 ##### API Endpoint Access Events
-| Event Type | Required Fields | Detail Field Usage |
-|------------|----------------|-------------------|
-| **API Request** (`api_request_processed`) | `auth_protocol`, `endpoint_path`, `http_method`, `endpoint_sensitivity`, `detail` | Success: "Successful API call"<br>Failure: `detail.auth.token_expired`, `detail.client.invalid_request` |
+| Event Type | Required Fields | Optional Fields | Detail Field Usage |
+|------------|----------------|-----------------|-------------------|
+| **API Request** (`api_request_processed`) | `auth_protocol`, `endpoint_path`, `http_method`, `authorization_status`, `endpoint_sensitivity` | `detail` | Success: `detail.not_applicable`<br>Failure: `detail.auth.token_expired`, `detail.auth.token_invalid`, `detail.auth.unauthorized_access`, `detail.client.invalid_request` |
 
 ##### Customer Data Actions Events
-| Event Type | Required Fields |
-|------------|----------------|
-| **Record Access** (`record_access`) | `endpoint_path`, `data_sensitivity_level`, `id_list` (record_count is auto-calculated) |
+| Event Type | Required Fields | Notes |
+|------------|----------------|-------|
+| **Record Access** (`record_access`) | `endpoint_path`, `data_sensitivity_level`, `id_list`, `detail` | `status` is automatically set to `Status.SUCCESS`, `log_category` to `LogCategory.CUSTOMER_DATA_ACTIONS`. `record_count` is auto-calculated from `id_list`. |
 
 ##### Key Configuration Changes Events
-| Event Type | Required Fields |
-|------------|----------------|
-| **MFA Status Change** (`mfa_status_change`) | `target_object`, `mfa_id` |
-| **Password Change/Reset** (`password_change_reset`) | `target_object` |
-| **API Key Lifecycle** (`api_key_lifecycle`) | `target_object` |
-| **Auth Mechanism Modification** (`auth_mechanism_modification`) | `target_object` |
+| Event Type | Required Fields | Notes |
+|------------|----------------|-------|
+| **MFA Status Change** (`mfa_status_change`) | `target_object`, `status`, `mfa_id`, `detail` | `detail.action.mfa_disabled`, `detail.action.mfa_enabled`, `detail.action.new_mfa_device` |
+| **Password Change/Reset** (`password_change_reset`) | `target_object`, `status`, `detail` | `detail.action.password_change`, `detail.action.password_reset` |
+| **API Key Lifecycle** (`api_key_lifecycle`) | `target_object`, `status`, `detail` | `detail.api_key.created`, `detail.api_key.revoked`, `detail.api_key.permissions_modified` |
+| **Auth Mechanism Modification** (`auth_mechanism_modification`) | `target_object`, `status`, `detail` | `detail.auth.sso_config_created`, `detail.auth.sso_config_modified`, `detail.auth.sso_config_deleted`, `detail.auth.local_auth_enabled`, `detail.auth.local_auth_disabled` |
+
+---
+
+### Appendix A.1: Complete Enum Reference Tables
+
+All constants are defined in `security_log_fields.py`. Import them directly:
+
+```python
+from security_log_fields import (
+    Status, ActorType, LogCategory, EventType, AuthProtocol, Detail,
+    MfaType, HttpMethod, CloudEnvType, CloudServiceApiType,
+    DataSensitivityLevel, EndpointSensitivity, UserRole, InviteStatus
+)
+```
+
+#### LogCategory
+| Member | Value | Description |
+|--------|-------|-------------|
+| `AUTHN_SESSION` | `"authn_n_session"` | Authentication and session events (login, logout, MFA) |
+| `AUTHZ_ACCESS` | `"authz_n_access"` | Authorization and access control events (permissions, status changes) |
+| `API_ENDPOINT_ACCESS` | `"api_endpoint_access"` | API endpoint requests and access |
+| `CUSTOMER_DATA_ACTIONS` | `"customer_data_actions"` | Customer data access (view, modify, export records) |
+| `KEY_CONFIG_CHANGES` | `"key_config_changes"` | Security configuration changes (passwords, MFA, API keys, SSO) |
+
+#### EventType
+| Member | Value | Category |
+|--------|-------|----------|
+| `LOGIN_ATTEMPT` | `"login_attempt"` | `authn_n_session` |
+| `USER_LOGOUT` | `"user_logout"` | `authn_n_session` |
+| `MFA_CHALLENGE` | `"mfa_challenge"` | `authn_n_session` |
+| `PERMISSION_CHANGE` | `"permission_change"` | `authz_n_access` |
+| `USER_STATUS_CHANGE` | `"user_status_change"` | `authz_n_access` |
+| `IMPERSONATION_EVENT` | `"impersonation_event"` | `authz_n_access` |
+| `USER_INVITE_EVENT` | `"user_invite_event"` | `authz_n_access` |
+| `API_REQUEST_PROCESSED` | `"api_request_processed"` | `api_endpoint_access` |
+| `RECORD_ACCESS` | `"record_access"` | `customer_data_actions` |
+| `MFA_STATUS_CHANGE` | `"mfa_status_change"` | `key_config_changes` |
+| `PASSWORD_CHANGE_RESET` | `"password_change_reset"` | `key_config_changes` |
+| `API_KEY_LIFECYCLE` | `"api_key_lifecycle"` | `key_config_changes` |
+| `AUTH_MECHANISM_MODIFICATION` | `"auth_mechanism_modification"` | `key_config_changes` |
+
+*(Note: Canonical normalizer also recognizes `api.request.success` and `api.request.failure` for API events).*
+
+#### Status
+| Member | Value | Description |
+|--------|-------|-------------|
+| `SUCCESS` | `"status.general.success"` | Event or operation succeeded |
+| `FAILURE` | `"status.general.failure"` | Event or operation failed |
+
+#### ActorType
+| Member | Value | Description |
+|--------|-------|-------------|
+| `HUMAN_INTERNAL` | `"actor.human.internal"` | Sunrun employee or internal contractor |
+| `HUMAN_PARTNER` | `"actor.human.partner"` | Partner organization employee |
+| `HUMAN_CUSTOMER` | `"actor.human.customer"` | Sunrun customer / homeowner |
+| `HUMAN_EXTERNAL` | `"actor.human.external"` | External human not classified as internal, partner, or customer |
+| `SERVICE_INTERNAL` | `"actor.service.internal"` | Internal Sunrun microservice / Lambda acting on behalf of user |
+| `SERVICE_PARTNER` | `"actor.service.partner"` | Partner service or API integration |
+| `SERVICE_CUSTOMER` | `"actor.service.customer"` | Customer-owned application / webhook |
+| `SYSTEM_SELF` | `"actor.system.self"` | Application performing scheduled / automated tasks (cron, cleanup) |
+
+#### UserRole
+| Member | Value | Description |
+|--------|-------|-------------|
+| `ADMIN` | `"role.classification.admin"` | Administrative user |
+| `SALES_REP` | `"role.classification.sales_rep"` | Sales representative |
+| `CUSTOMER_SUPPORT` | `"role.classification.customer_support"` | Customer support user |
+| `PARTNER_ADMIN` | `"role.classification.partner_admin"` | Partner administrative user |
+| `CUSTOMER_USER` | `"role.classification.customer_user"` | Customer / homeowner user |
+| `NON_ADMIN_INTERNAL` | `"role.classification.non_admin_internal"` | Standard internal Sunrun employee |
+| `NOT_AVAILABLE` | `"role.classification.not_available"` | Role cannot be determined at logging time |
+
+#### HttpMethod
+| Member | Value |
+|--------|-------|
+| `GET` | `"http.method.GET"` |
+| `POST` | `"http.method.POST"` |
+| `PUT` | `"http.method.PUT"` |
+| `PATCH` | `"http.method.PATCH"` |
+| `DELETE` | `"http.method.DELETE"` |
+| `HEAD` | `"http.method.HEAD"` |
+| `OPTIONS` | `"http.method.OPTIONS"` |
+
+#### CloudEnvType
+| Member | Value |
+|--------|-------|
+| `PROD` | `"prod"` |
+| `STAGE` | `"stage"` |
+| `TEST` | `"test"` |
+| `DEV` | `"dev"` |
+
+#### CloudServiceApiType
+| Member | Value | Description |
+|--------|-------|-------------|
+| `AWS_LAMBDA` | `"aws_lambda"` | AWS Lambda function |
+| `GKE_NAMESPACE` | `"gke_namespace"` | Google Kubernetes Engine namespace |
+| `EC2_INSTANCE` | `"ec2_instance"` | Amazon EC2 instance |
+| `ECS_SERVICE` | `"ecs_service"` | Amazon ECS service |
+
+#### DataSensitivityLevel & EndpointSensitivity
+| Member | Value | Description |
+|--------|-------|-------------|
+| `PUBLIC` | `"sensitivity.level.public"` | Public data (product catalogs, marketing, public APIs) |
+| `NON_PUBLIC` | `"sensitivity.level.non_public"` | Internal business data, not customer-specific (metrics, configs) |
+| `CONFIDENTIAL` | `"sensitivity.level.confidential"` | Customer/business data that shouldn't leak (records, agreements) |
+| `RESTRICTED` | `"sensitivity.level.restricted"` | Highly sensitive: PII, SSN, bank accounts, passwords, API keys |
+
+#### Detail (Categorized)
+| Subcategory | Member | Value |
+|-------------|--------|-------|
+| **Auth Failures** | `INVALID_CREDENTIALS` | `"detail.auth.invalid_credentials"` |
+| | `ACCOUNT_LOCKED` | `"detail.auth.account_locked"` |
+| | `IP_RESTRICTED` | `"detail.auth.ip_restricted"` |
+| | `MFA_REQUIRED` | `"detail.auth.mfa_required"` |
+| | `POLICY_VIOLATION` | `"detail.auth.policy_violation"` |
+| | `CAPTCHA_FAILURE` | `"detail.auth.captcha_failure"` |
+| | `TOKEN_EXPIRED` | `"detail.auth.token_expired"` |
+| | `TOKEN_INVALID` | `"detail.auth.token_invalid"` |
+| | `UNAUTHORIZED_ACCESS` | `"detail.auth.unauthorized_access"` |
+| | `RATE_LIMIT_EXCEEDED` | `"detail.auth.rate_limit_exceeded"` |
+| **Triggers** | `USER_INITIATED` | `"detail.trigger.user_initiated"` |
+| | `ADMIN_INITIATED` | `"detail.trigger.admin_initiated"` |
+| | `SYSTEM_AUTOMATED` | `"detail.trigger.system_automated"` |
+| | `SYSTEM_POLICY_VIOLATION` | `"detail.trigger.system_policy_violation"` |
+| | `SESSION_TIMEOUT` | `"detail.trigger.session_timeout"` |
+| | `CONCURRENT_SESSION` | `"detail.trigger.concurrent_session"` |
+| | `FAILED_ATTEMPTS_THRESHOLD` | `"detail.trigger.failed_attempts_threshold"` |
+| **Customer Data** | `VIEW_LIST` | `"detail.action.view_list"` |
+| | `MODIFY_CUSTOMER_DATA` | `"detail.action.modify_customer_data"` |
+| | `EXPORT_REPORT` | `"detail.action.export_report"` |
+| | `VIEW_RECORD` | `"detail.action.view_record"` |
+| | `EDIT_RECORD` | `"detail.action.edit_record"` |
+| | `CREATE_RECORD` | `"detail.action.create_record"` |
+| | `DELETE_RECORD` | `"detail.action.delete_record"` |
+| **User Status** | `USER_DISABLED` | `"detail.action.user_disabled"` |
+| | `USER_ENABLED` | `"detail.action.user_enabled"` |
+| | `USER_DELETED` | `"detail.action.user_deleted"` |
+| | `USER_LOCKED` | `"detail.action.user_locked"` |
+| | `USER_UNLOCKED` | `"detail.action.user_unlocked"` |
+| **Impersonation** | `IMPERSONATION_START` | `"detail.action.impersonation_start"` |
+| | `IMPERSONATION_STOP` | `"detail.action.impersonation_stop"` |
+| **MFA Actions** | `MFA_DISABLED` | `"detail.action.mfa_disabled"` |
+| | `MFA_ENABLED` | `"detail.action.mfa_enabled"` |
+| | `NEW_MFA_DEVICE` | `"detail.action.new_mfa_device"` |
+| **MFA Challenge** | `MFA_INVALID_CODE` | `"detail.mfa.invalid_code"` |
+| | `MFA_EXPIRED_CODE` | `"detail.mfa.expired_code"` |
+| | `MFA_DEVICE_NOT_ENROLLED` | `"detail.mfa.device_not_enrolled"` |
+| | `MFA_TOO_MANY_ATTEMPTS` | `"detail.mfa.too_many_attempts"` |
+| **Passwords** | `PASSWORD_CHANGE` | `"detail.action.password_change"` |
+| | `PASSWORD_RESET` | `"detail.action.password_reset"` |
+| **API Keys** | `API_KEY_CREATED` | `"detail.api_key.created"` |
+| | `API_KEY_REVOKED` | `"detail.api_key.revoked"` |
+| | `API_KEY_PERMISSIONS_MODIFIED` | `"detail.api_key.permissions_modified"` |
+| **Auth Mechanisms** | `SSO_CONFIG_CREATED` | `"detail.auth.sso_config_created"` |
+| | `SSO_CONFIG_MODIFIED` | `"detail.auth.sso_config_modified"` |
+| | `SSO_CONFIG_DELETED` | `"detail.auth.sso_config_deleted"` |
+| | `LOCAL_AUTH_ENABLED` | `"detail.auth.local_auth_enabled"` |
+| | `LOCAL_AUTH_DISABLED` | `"detail.auth.local_auth_disabled"` |
+| | `NEW_SSO_PROVIDER` | `"detail.action.new_sso_provider"` |
+| | `ENABLE_LOCAL_AUTHN` | `"detail.action.enable_local_authn"` |
+| | `DISABLE_SSO` | `"detail.action.disable_sso"` |
+| **System** | `INTERNAL_ERROR` | `"detail.system.internal_error"` |
+| | `SERVICE_UNAVAILABLE` | `"detail.system.service_unavailable"` |
+| | `MAINTENANCE` | `"detail.system.maintenance"` |
+| | `INVALID_REQUEST` | `"detail.client.invalid_request"` |
+| | `NOT_APPLICABLE` | `"detail.not_applicable"` |
+
+#### Authorization Status & Session Termination Notes
+- **`authorization_status`**: Used in `log_api_request`. Pass `Status.SUCCESS` or `Status.FAILURE` (`"status.general.success"` or `"status.general.failure"`). The normalizer promotes this value to `status` if `status` is not set.
+- **Session Termination Reason**: Used in `log_user_logout` via the `detail` parameter. Pass a valid `Detail` constant: `Detail.USER_INITIATED`, `Detail.SESSION_TIMEOUT`, `Detail.ADMIN_INITIATED`, or `Detail.CONCURRENT_SESSION`. There is no separate `SessionTerminationReason` enum class.
+
+#### AuthProtocol
+| Member | Value | Description |
+|--------|-------|-------------|
+| `BASIC_AUTH` | `"auth.protocol.basic_auth"` | HTTP Basic Authentication |
+| `FORM_BASED` | `"auth.protocol.form_based"` | Form-based username/password login |
+| `API_KEY` | `"auth.protocol.api_key"` | API key authentication |
+| `M2M_TOKEN` | `"auth.protocol.m2m_token"` | Machine-to-machine token |
+| `SESSION_COOKIE` | `"auth.protocol.session_cookie"` | Session cookie authentication |
+| `OAUTH2_JWT` | `"auth.protocol.oauth2.jwt"` | OAuth2 with JWT tokens |
+| `OAUTH2_CLIENT_CREDENTIALS` | `"auth.protocol.oauth2.client_credentials"` | OAuth2 client credentials grant |
+| `OAUTH2_AUTHORIZATION_CODE` | `"auth.protocol.oauth2.authorization_code"` | OAuth2 authorization code flow |
+| `OAUTH2_IMPLICIT` | `"auth.protocol.oauth2.implicit"` | OAuth2 implicit flow |
+| `OAUTH2_PASSWORD_GRANT` | `"auth.protocol.oauth2.password_grant"` | OAuth2 resource owner password grant |
+| `SAML` | `"auth.protocol.saml"` | SAML SSO authentication |
+| `OIDC` | `"auth.protocol.oidc"` | OpenID Connect authentication |
+| `NONE` | `"auth.protocol.none"` | No authentication (public endpoints) |
+
+#### InviteStatus
+| Member | Value |
+|--------|-------|
+| `SENT` | `"sent"` |
+| `ACCEPTED` | `"accepted"` |
+| `REVOKED` | `"revoked"` |
+| `EXPIRED` | `"expired"` |
+
+#### MfaType
+| Member | Value |
+|--------|-------|
+| `SMS` | `"sms"` |
+| `TOTP` | `"totp"` |
+| `PUSH` | `"push"` |
+| `EMAIL` | `"email"` |
+| `OKTA_VERIFY` | `"okta_verify"` |
+| `AUTHENTICATOR_APP` | `"authenticator_app"` |
+| `HARDWARE_TOKEN` | `"hardware_token"` |
+| `BIOMETRIC` | `"biometric"` |
+| `BACKUP_CODES` | `"backup_codes"` |
 
 ### Appendix B: Sample Log Outputs
 
@@ -1731,7 +1943,7 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 }
 ```
 
-> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`example_publish.py`](example_publish.py).
+> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 13 event types, see [`example_publish.py`](example_publish.py).
 
 ### Appendix C: W3C Trace Context Support
 
@@ -1787,7 +1999,7 @@ SecurityLogging.log_user_login(
     actor_identifier="user@example.com",
     auth_protocol=AuthProtocol.OAUTH2_JWT,
     user_agent="Mozilla/5.0",
-    user_role="role.classification.admin",
+    user_role=UserRole.ADMIN,
     # Trace context fields (optional)
     trace_id=trace_id,
     span_id=span_id,
@@ -1966,6 +2178,8 @@ SecurityLogging.init_security_logging(
 | Parameter | Type | Required | Description | Default |
 |-----------|------|----------|-------------|---------|
 | `test_mode` | bool | No | Enable test mode (prints to console, no security logging) | `False` |
+| `log_to_local_stdout` | bool | No | Mirror formatted log JSON to stdout (CloudWatch) in addition to SNS | `False` |
+| `local_logging` | bool | No | Alias for `log_to_local_stdout` | `False` |
 
 **🔒 Security First**: Pre-configured for centralized security monitoring. No configuration required for production use.
 
@@ -1973,6 +2187,11 @@ SecurityLogging.init_security_logging(
 
 | Variable | Description | Example |
 |----------|-------------|---------|  
+| `SR_SEC_LOG_TO_STDOUT` | Mirror logs to stdout when `"true"`, `"1"`, or `"yes"` | `true` |
+| `SR_SEC_LOCAL_LOGGING` | Alias for `SR_SEC_LOG_TO_STDOUT` | `true` |
+| `SECURITY_LOGS_TOPIC_ARN` | Override primary SNS topic ARN | `arn:aws:sns:us-west-2:...` |
+| `SECURITY_LOGS_FAILOVER_TOPIC_ARN` | Override failover SNS topic ARN | `arn:aws:sns:us-east-2:...` |
+| `AWS_REGION` | Primary AWS region | `us-west-2` |
 | `AWS_ACCESS_KEY_ID` | AWS credentials (if not using IAM roles) | `YOUR_ACCESS_KEY_ID` |
 | `AWS_SECRET_ACCESS_KEY` | AWS credentials (if not using IAM roles) | `YOUR_SECRET_ACCESS_KEY` |
 
@@ -1999,7 +2218,9 @@ Your application's IAM role or user needs the following permission for security 
 
 ## API Gateway Lambda adapter
 
-`lambda_helpers` (`v2.2.0`) initializes logging for an API Gateway Lambda without a copied helper. Pass your own service name and account mapping. `awsAccountId` or `AWS_ACCOUNT_ID` overrides the mapped account. `build_lambda_context` includes the env fields because the Python `log_*` functions require them as arguments. `user_role` and `user_agent` are only accepted by login, MFA, and logout. Drop those two keys before spreading the context into the other log functions.
+`lambda_helpers` (`v2.2.0`+) initializes logging for an API Gateway Lambda without a copied helper. Pass your own service name and account mapping. `awsAccountId` or `AWS_ACCOUNT_ID` overrides the mapped account. `build_lambda_context` includes the env fields because the Python `log_*` functions require them as arguments. `user_role` and `user_agent` are only accepted by login, MFA, and logout. Drop those two keys before spreading the context into the other log functions.
+
+As of `v2.3.0`, pass `log_to_local_stdout=True` (or set `SR_SEC_LOG_TO_STDOUT=true` in Lambda environment variables) to mirror logs to local CloudWatch stdout in addition to publishing to SNS.
 
 ```python
 from lambda_helpers import init_lambda_security_logging, build_lambda_context, ignore_log_error, extract_failure_reason
@@ -2012,6 +2233,7 @@ init_lambda_security_logging(
     envs=[
         {"names": ["production", "prod"], "cloud_env_type": CloudEnvType.PROD, "cloud_env_name": "production", "account_id": "222222222222"},
     ],
+    log_to_local_stdout=False,  # Set to True or use SR_SEC_LOG_TO_STDOUT=true to mirror to CloudWatch
 )
 
 ignore_log_error(lambda: log_user_login(
@@ -2033,25 +2255,25 @@ Update the version in **three places**:
 
 1. **`__init__.py`**:
    ```python
-   __version__ = "2.0.4"
+   __version__ = "2.3.1"
    ```
 
 2. **`pyproject.toml`**:
    ```toml
    [project]
-   version = "2.0.4"
+   version = "2.3.1"
    ```
 
 3. **`setup.py`**:
    ```python
-   version = "2.0.4"
+   version = "2.3.1"
    ```
 
 ### **Step 2: Create and Push Git Tag**
 
 ```bash
 # Create annotated tag with release notes
-git tag -a v2.0.4 -m "Version 2.0.4 - Description of changes
+git tag -a v2.3.1 -m "Version 2.3.1 - Description of changes
 
 - Feature 1
 - Bug fix 2
@@ -2060,7 +2282,7 @@ git tag -a v2.0.4 -m "Version 2.0.4 - Description of changes
 TICKET-NUMBER"
 
 # Push tag to GitHub
-git push origin v2.0.4
+git push origin v2.3.1
 ```
 
 ### **Step 3: Update Consuming Projects**
@@ -2069,7 +2291,7 @@ For each project that uses this package:
 
 1. **Update `requirements.txt`**:
    ```txt
-   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.0.4
+   sr-sec-py-sns-logger @ git+https://github.com/SunRun/sr-sec-py-sns-logger.git@v2.3.1
    ```
 
 2. **Regenerate lock file** (if using pip-tools):

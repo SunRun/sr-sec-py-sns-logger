@@ -1189,7 +1189,7 @@ def log_record_access(
         ...     service_name="customer-portal",
         ...     event_type=EventType.RECORD_ACCESS,
         ...     endpoint_path="/api/v1/customers/cust_123",
-        ...     data_sensitivity_level=DataSensitivityLevel.PII_FINANCIAL,
+        ...     data_sensitivity_level=DataSensitivityLevel.RESTRICTED,
         ...     id_list=["cust_123"],
         ...     detail=Detail.VIEW_RECORD,
         ...     fields_accessed=["ssn", "bank_account"],
