@@ -692,7 +692,7 @@ with ThreadPoolExecutor() as executor:
         user_role=SecurityLogging.UserRole.ADMIN, # Map your app's roles to library constants
         auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,  # Username/password, OAuth2, SAML, etc.
         status=SecurityLogging.Status.SUCCESS,
-        detail="First time login from new device"
+        detail=SecurityLogging.Detail.USER_INITIATED
     )
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 
@@ -710,7 +710,7 @@ def security_error_handler(error_msg, event_type):
 SecurityLogging.set_security_logging_error_handler(security_error_handler)
 ```
 
-**🎉 That's it!** You now have non-blocking security logging with error monitoring. For complete examples of all 14 event types, see [`example_publish.py`](example_publish.py).
+**🎉 That's it!** You now have non-blocking security logging with error monitoring. For complete examples of all 13 event types, see [`example_publish.py`](example_publish.py).
 
 ---
 
@@ -778,7 +778,7 @@ def handle_user_login(user_email, session_id, user_agent):
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
-            detail="Successful login"
+            detail=SecurityLogging.Detail.USER_INITIATED
         )
         SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
@@ -950,7 +950,7 @@ with ThreadPoolExecutor() as executor:
         auth_protocol=SecurityLogging.AuthProtocol.OAUTH2_JWT,
         status=SecurityLogging.Status.SUCCESS,
         source_ip_address="192.168.1.100",
-        detail="First time login from new device"
+        detail=SecurityLogging.Detail.USER_INITIATED
     )
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
 ```
@@ -1031,7 +1031,7 @@ with ThreadPoolExecutor() as executor:
     SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.PERMISSION_CHANGE)
 ```
 
-> **📝 Note**: For complete examples of all 14 available functions, see [`example_publish.py`](example_publish.py).
+> **📝 Note**: For complete examples of all 13 available functions, see [`example_publish.py`](example_publish.py).
 
 ---
 
@@ -1317,7 +1317,7 @@ def handle_user_login(user_email, session_id):
             user_role=SecurityLogging.UserRole.ADMIN,
             auth_protocol=SecurityLogging.AuthProtocol.FORM_BASED,
             status=SecurityLogging.Status.SUCCESS,
-            detail="Successful login"
+            detail=SecurityLogging.Detail.USER_INITIATED
         )
         SecurityLogging.fire_and_forget(future, SecurityLogging.EventType.LOGIN_ATTEMPT)
     
@@ -1943,7 +1943,7 @@ This section shows the exact JSON structure that gets sent to your SNS topic for
 }
 ```
 
-> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 14 event types, see [`example_publish.py`](example_publish.py).
+> **📝 Note**: All timestamps are in UTC ISO format. The exact structure shown above is what gets sent to your SNS topic and forwarded to your SIEM for analysis and alerting. For additional sample outputs covering all 13 event types, see [`example_publish.py`](example_publish.py).
 
 ### Appendix C: W3C Trace Context Support
 
@@ -1999,7 +1999,7 @@ SecurityLogging.log_user_login(
     actor_identifier="user@example.com",
     auth_protocol=AuthProtocol.OAUTH2_JWT,
     user_agent="Mozilla/5.0",
-    user_role="role.classification.admin",
+    user_role=UserRole.ADMIN,
     # Trace context fields (optional)
     trace_id=trace_id,
     span_id=span_id,
