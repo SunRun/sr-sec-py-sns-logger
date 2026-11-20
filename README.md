@@ -1,5 +1,23 @@
 # sr-sec-py-sns-logger: Developer Implementation Guide
 
+## Latency
+
+Measured 2026-11-19 against a real AWS Lambda in SoftSec Dev (`us-west-2`, `python3.12`, 512 MB), publishing one `record_access` event per invocation to the dev logging topic.
+
+| Operation | Cold | Warm (p50 / p95 / max) |
+|---|---|---|
+| Library init (`init_lambda_security_logging`) | ~444 ms | n/a (runs once per container) |
+| Single log call (`log_record_access`) | ~166 ms | 16 / 18 / 18 ms |
+| Single log call, SNS unreachable | 20,626 ms | not measured |
+| Full Lambda `Init Duration` (includes Python runtime) | 573 ms | n/a |
+
+**What this means.** Init is idempotent, so only the first invocation in a container pays it. Every `log_*` call performs one synchronous SNS publish, which must be awaited inside the request path — Lambda freezes the execution environment on handler return, so a detached publish is killed before it sends and the event is silently lost. The ~16 ms warm figure is that round trip.
+
+**Failure path is bounded but slow.** With the SNS endpoint blackholed, a single log call took 20.6 s before returning `status=failure`: 2 s connect / 2 s read timeouts across 2 primary attempts plus 3 failover attempts. The call still returns and never raises, but budget a Lambda timeout above this if a wedged network is plausible.
+
+Method, raw runs, and the deploy/teardown scripts: see [BENCHMARKS.md](BENCHMARKS.md).
+
+
 A Python module for sending structured security logs to AWS SNS for centralized security monitoring. This guide takes you from initial setup to a fully instrumented, production-ready implementation.
 
 **Key Features:**
