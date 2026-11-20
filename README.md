@@ -13,7 +13,9 @@ Measured 2026-11-19 against a real AWS Lambda in SoftSec Dev (`us-west-2`, `pyth
 
 **What this means.** Init is idempotent, so only the first invocation in a container pays it. Every `log_*` call performs one synchronous SNS publish, which must be awaited inside the request path — Lambda freezes the execution environment on handler return, so a detached publish is killed before it sends and the event is silently lost. The ~16 ms warm figure is that round trip.
 
-**Failure path is bounded but slow.** With the SNS endpoint blackholed, a single log call took 20.6 s before returning `status=failure`: 2 s connect / 2 s read timeouts across 2 primary attempts plus 3 failover attempts. The call still returns and never raises, but budget a Lambda timeout above this if a wedged network is plausible.
+**Failure path is bounded but slow.** With both the primary and failover endpoints unreachable, a single log call took 20.6 s before returning `status=failure`: 2 s connect / 2 s read timeouts across 2 primary attempts plus 3 failover attempts. The call still returns and never raises, but budget a Lambda timeout above this if a wedged network is plausible. A single-region failure fails over normally and costs far less.
+
+**One field trap.** `build_lambda_context()` includes `user_agent` and `user_role`, which `log_record_access()` rejects as unexpected keyword arguments. Because the documented pattern wraps calls in `ignore_log_error`, the resulting `TypeError` is swallowed and the event is dropped with no error surfaced. Pop those two keys before spreading the context — details in [BENCHMARKS.md](BENCHMARKS.md).
 
 Method, raw runs, and the deploy/teardown scripts: see [BENCHMARKS.md](BENCHMARKS.md).
 
